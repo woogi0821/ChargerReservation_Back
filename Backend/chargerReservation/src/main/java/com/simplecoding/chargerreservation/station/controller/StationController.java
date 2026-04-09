@@ -5,9 +5,11 @@ import com.simplecoding.chargerreservation.station.dto.StationDto;
 import com.simplecoding.chargerreservation.station.service.StationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 @CrossOrigin(origins = "http://172.27.80.1:5501") // 모든 도메인에서의 접속을 허용 (테스트용)
 @Slf4j
@@ -63,28 +65,37 @@ public class StationController {
      * 3. [추가] 충전소 상세 정보 조회 (거리 계산 + 실시간 충전기 상태 포함)
      * GET /api/stations/KP002210?userLat=35.1485&userLng=129.0637
      */
-//    @GetMapping("/{statId}")
-//    public ResponseEntity<StationDto> getStationDetail(
-//            @PathVariable String statId,
-//            // defaultValue를 설정하거나 required = false를 주면 위치 정보가 없어도 에러가 나지 않습니다.
-//            @RequestParam(required = false) Double userLat,
-//            @RequestParam(required = false) Double userLng) {
-//
-//        log.info("🔍 [API] 충전소 상세 조회 요청 - ID: {}, 내 위치: ({}, {})",
-//                statId,
-//                userLat != null ? userLat : "알수없음",
-//                userLng != null ? userLng : "알수없음");
-//
-//        try {
-//            // 서비스 호출 (우리가 테스트했던 그 로직!)
-//            StationDto detail = stationService.getStationDetail(statId, userLat, userLng);
-//            return ResponseEntity.ok(detail);
-//        } catch (RuntimeException e) {
-//            // 충전소를 찾지 못했을 경우 404 Not Found를 응답하는 것이 더 정확합니다.
-//            log.error("❌ 상세 조회 실패: {}", e.getMessage());
-//            return ResponseEntity.notFound().build();
-//        }
-//    }
+    @GetMapping("/{statId}")
+    public ResponseEntity<StationDto> getStationDetail(
+            @PathVariable String statId,
+            @RequestParam(defaultValue = "급속") String type,
+            @RequestParam(required = false) Double userLat,
+            @RequestParam(required = false) Double userLng) {
+
+        // 1. 현재 월 추출 (01, 02... 형식)
+        String currentMonth = String.format("%02d", LocalDate.now().getMonthValue());
+
+        // 2. 위치 정보 기본값 처리
+        // 프론트에서 위치 권한을 거부했을 때를 대비해 기본 좌표(범내골)를 사용하는 로직은 좋습니다.
+        double lat = (userLat != null) ? userLat : 35.1485;
+        double lng = (userLng != null) ? userLng : 129.0637;
+
+        log.info("🔍 [API] 상세 조회 요청 - ID: {}, 타입: {}, 위치: ({}, {})", statId, type, lat, lng);
+
+        try {
+            // 3. 서비스 호출
+            StationDto detail = stationService.getStationDetail(statId, type, currentMonth, lat, lng);
+
+            // 💡 [추가 제안] 충전기 목록(List<ChargerDto>)이 있다면 여기서 추가로 세팅하거나
+            // 서비스 내부에서 이미 세팅되어 내려오는지 확인이 필요합니다.
+
+            return ResponseEntity.ok(detail);
+
+        } catch (Exception e) { // RuntimeException보다 넓은 범위의 예외 처리 권장
+            log.error("❌ 상세 조회 실패 (ID: {}): {}", statId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
     /**
      * [추가] 1. 내 주변 충전소 리스트 조회 (무한 스크롤용 - 20개씩)

@@ -1,9 +1,8 @@
 package com.simplecoding.chargerreservation.common;
 
-import com.simplecoding.chargerreservation.charger.dto.ChargerDto;
-import com.simplecoding.chargerreservation.charger.entity.ChargerEntity;
-import com.simplecoding.chargerreservation.chargerPrice.dto.ChargerPriceDto;
-import com.simplecoding.chargerreservation.chargerPrice.entity.ChargerPriceEntity;
+import com.simplecoding.chargerreservation.notice.dto.NoticeRequestDto;
+import com.simplecoding.chargerreservation.notice.dto.NoticeResponseDto;
+import com.simplecoding.chargerreservation.notice.entity.NoticeEntity;
 import com.simplecoding.chargerreservation.station.dto.StationDto;
 import com.simplecoding.chargerreservation.station.entity.StationEntity;
 import com.simplecoding.chargerreservation.station.repository.MarkerProjection;
@@ -15,55 +14,53 @@ import org.mapstruct.*;
 )
 public interface MapStruct {
 
-    // --------------------------------------------------
-    // 1) 충전소(Station) 변환
-    // --------------------------------------------------
-    @Mapping(target = "parkingInfo", expression = "java(convertParking(entity.getParkingFree()))")
-    @Mapping(target = "openStatus", expression = "java(convertOpenStatus(entity.getLimitYn(), entity.getLimitDetail()))")
-    @Mapping(target = "chargers", ignore = true)
-    @Mapping(target = "currentPrice", ignore = true) // 서비스에서 수동으로 넣을 거라 무시
-    @Mapping(target = "priceDetail", ignore = true)  // 상세조회 시 채울 거라 무시
+    // --- [1] Station: @Named로 특정 메서드만 사용하도록 강제 ---
+    @Mapping(target = "parkingInfo", source = "parkingFree", qualifiedByName = "toParkingName")
+    @Mapping(target = "openStatus", source = "entity", qualifiedByName = "toOpenStatusName")
     StationDto toDto(StationEntity entity);
 
-    @Mapping(target = "parkingInfo", expression = "java(convertParking(p.getParkingFree()))")
-    @Mapping(target = "openStatus", expression = "java(convertOpenStatus(p.getLimitYn(), p.getLimitDetail()))")
-    @Mapping(target = "chargers", ignore = true)
-    @Mapping(target = "currentPrice", source = "currentPrice") // ✨ 프로젝션의 값을 DTO로 바로 매핑
-    @Mapping(target = "priceDetail", ignore = true)
+    @Mapping(target = "parkingInfo", source = "parkingFree", qualifiedByName = "toParkingName")
+    @Mapping(target = "openStatus", source = "p", qualifiedByName = "toOpenStatusNameProj")
     StationDto toDto(MarkerProjection p);
 
-    StationEntity toEntity(StationDto stationDto);
+    // --- [2] Notice: source를 직접 지정하여 자동 매핑(오염) 방지 ---
+    @Mapping(target = "noticeId", ignore = true)
+    @Mapping(target = "writerId", ignore = true)
+    @Mapping(target = "deleteYn", ignore = true)
+    @Mapping(target = "deleteTime", ignore = true)
+    @Mapping(target = "title", source = "dto.title")
+    @Mapping(target = "content", source = "dto.content")
+    NoticeEntity toEntity(NoticeRequestDto dto);
 
-    void updateFromDto(StationDto dto, @MappingTarget StationEntity entity);
+    @Mapping(target = "title", source = "entity.title")
+    @Mapping(target = "content", source = "entity.content")
+    NoticeResponseDto toResponseDto(NoticeEntity entity);
 
-    // --------------------------------------------------
-    // 2) 충전기(Charger) 변환
-    // --------------------------------------------------
-    ChargerDto toDto(ChargerEntity chargerEntity);
-    ChargerEntity toEntity(ChargerDto chargerDto);
-    void updateFromDto(ChargerDto dto, @MappingTarget ChargerEntity entity);
-
-    // --------------------------------------------------
-    // 3) 요금(ChargerPrice) 변환
-    // --------------------------------------------------
-    ChargerPriceDto toDto(ChargerPriceEntity entity);
-
-    @Mapping(target = "updateDt", ignore = true)
-    ChargerPriceEntity toEntity(ChargerPriceDto dto);
-
-    // --------------------------------------------------
-    // 4) 공통 변환 로직 (Default Methods)
-    // --------------------------------------------------
-    default String convertParking(String parkingFree) {
+    // --- [3] 변환 로직: @Named로 이름표를 붙여서 자동 호출을 막음 ---
+    @Named("toParkingName")
+    default String toParkingName(String parkingFree) {
         if ("Y".equals(parkingFree)) return "무료주차";
         if ("N".equals(parkingFree)) return "유료주차";
         return "정보없음";
     }
 
-    default String convertOpenStatus(String limitYn, String limitDetail) {
-        if ("Y".equals(limitYn)) {
-            return (limitDetail != null && !limitDetail.isEmpty()) ? "미개방(" + limitDetail + ")" : "미개방";
+    @Named("toOpenStatusName")
+    default String toOpenStatusName(StationEntity entity) {
+        if ("Y".equals(entity.getLimitYn())) {
+            return (entity.getLimitDetail() != null && !entity.getLimitDetail().isEmpty())
+                    ? "미개방(" + entity.getLimitDetail() + ")" : "미개방";
         }
         return "개방";
     }
+
+    @Named("toOpenStatusNameProj")
+    default String toOpenStatusNameProj(MarkerProjection p) {
+        if ("Y".equals(p.getLimitYn())) {
+            return (p.getLimitDetail() != null && !p.getLimitDetail().isEmpty())
+                    ? "미개방(" + p.getLimitDetail() + ")" : "미개방";
+        }
+        return "개방";
+    }
+
+    // 기존의 다른 매핑들 (toEntity, updateFromDto 등)은 이 아래에 그대로 두시면 됩니다.
 }
