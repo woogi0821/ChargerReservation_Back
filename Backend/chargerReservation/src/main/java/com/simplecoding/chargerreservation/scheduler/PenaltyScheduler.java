@@ -38,9 +38,10 @@ public class PenaltyScheduler {
             try {
                 // 3. res.getMember().getPhone()으로 번호를 알아내서 문자를 쏜다.
                 // (주의: Member 엔티티에 getPhoneNumber() 혹은 getPhone() 메서드가 있어야 함)
-                // *******   Merge후 꼭 확인 (getName, getPhone 이름 동일한지) **************************
+
                 String userPhone = res.getMember().getPhone();
                 String userName = res.getMember().getName();
+                res.markAlertAsSent(); // 엔티티에 만든 그 메서드! 'Y'로 바꾸는 역할
 
                 smsService.sendPenaltyMessage(
                         userPhone,
@@ -48,7 +49,7 @@ public class PenaltyScheduler {
                         "예약 시간 1분 경과 안내",
                         "10분 내 미충전 시 자동 취소 및 패널티가 부여됩니다."
                 );
-                                               // *******   Merge후 꼭 확인 (getName, getPhone 이름 동일한지)**************************
+
                 log.info("🚫 자동 취소 완료: 사용자={}, 예약ID={}", res.getMember().getName(), res.getId());
             } catch (Exception e) {
                 log.error("❌ 자동 취소 실패 (예약ID: {}): {}", res.getId(), e.getMessage());
