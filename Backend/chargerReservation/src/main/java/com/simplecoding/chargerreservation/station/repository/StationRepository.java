@@ -92,19 +92,33 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
      * 3. [상세 조회용] 특정 충전소 정보 + 2개년 요금 히스토리 조인
      * - 규칙 3: 올해와 작년 요금을 한 번에 가져와서 비교할 수 있게 함
      */
-    @Query("SELECT s, p FROM StationEntity s " +
-            "LEFT JOIN ChargerPriceEntity p ON s.bnm = p.bnm " +
-            "WHERE s.statId = :statId " +
-            "AND p.speedType = :type " +
-            "AND p.season = :season " +
-            "AND (p.applyYear = :currYear OR p.applyYear = :lastYear) " +
-            "ORDER BY p.applyYear DESC")
+    @Query(value = "SELECT " +
+            "s.STAT_NM, s.ADDR, s.BNM, s.LOCATION, s.USE_TIME, " + // 0, 1, 2, 3, 4
+            "s.LIMIT_YN, s.PARKING_FREE, s.LIMIT_DETAIL, s.UPDATED_AT, " + // 5, 6, 7, 8
+            "ROUND(6371 * acos(LEAST(1, GREATEST(-1, " + // 9 (거리)
+            "    sin(:lat * 3.141592653589793 / 180) * sin(s.LAT * 3.141592653589793 / 180) + " +
+            "    cos(:lat * 3.141592653589793 / 180) * cos(s.LAT * 3.141592653589793 / 180) * " +
+            "    cos((s.LNG - :lng) * 3.141592653589793 / 180) " +
+            "))), 2) AS distance, " +
+            "(SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID) AS total, " + // 10
+            "(SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.STAT = '2') AS available, " + // 11
+            "(SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.STAT IN ('4', '5')) AS broken, " + // 12
+            "p.UNIT_PRICE, p.APPLY_YEAR " + // 13, 14
+            "FROM STATION s " +
+            "LEFT JOIN CHARGER_PRICE p ON TRIM(s.BNM) = TRIM(p.BNM) " + // 💡 TRIM 추가
+            "AND p.SPEED_TYPE = :type " +
+            "AND p.SEASON = :season " +
+            "AND (p.APPLY_YEAR = :currYear OR p.APPLY_YEAR = :lastYear) " +
+            "WHERE s.STAT_ID = :statId " +
+            "ORDER BY p.APPLY_YEAR DESC", nativeQuery = true)
     List<Object[]> findStationDetailWithPriceHistory(
             @Param("statId") String statId,
             @Param("type") String type,
             @Param("season") String season,
             @Param("currYear") Integer currYear,
-            @Param("lastYear") Integer lastYear
+            @Param("lastYear") Integer lastYear,
+            @Param("lat") double lat,
+            @Param("lng") double lng
     );
 
     // 나머지 메서드들 (동일)
