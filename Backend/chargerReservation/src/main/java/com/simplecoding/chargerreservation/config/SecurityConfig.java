@@ -47,6 +47,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/email/**").permitAll()
                 .requestMatchers("/member/login", "/member/join", "/member/refresh").permitAll()
+                .requestMatchers("/api/stations/**").permitAll()
                 .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
                 .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
                 .requestMatchers("/download/**", "/images/**", "/css/**","/js/**", "/favicon.ico").permitAll()

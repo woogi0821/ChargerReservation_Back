@@ -21,6 +21,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.net.URI;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -135,52 +136,77 @@ public class StationService {
      * - 특정 마커를 클릭했을 때 해당 충전소 1개의 상세 정보를 가져옵니다.
      * - 테스트 코드에서 호출하는 핵심 메서드입니다.
      */
-//    @Transactional(readOnly = true)
-//    public StationDto getStationDetail(String statId, String type, String currentMonth) {
-//        // 1. 올해와 작년 연도 계산
-//        int currYear = LocalDate.now().getYear();
-//        int lastYear = currYear - 1;
-//
-//        // 현재 계절 판별 (DTO의 로직을 활용하기 위해 month 전달)
-//        String season = determineSeason(currentMonth);
-//
-//        // 2. [명령 하달] 충전소 정보와 요금 히스토리를 한 번에 조회 (리포지토리 방문)
-//        List<Object[]> results = stationRepository.findStationDetailWithPriceHistory(
-//                statId, type, season, currYear, lastYear
-//        );
-//
-//        if (results.isEmpty()) {
-//            throw new RuntimeException("해당 충전소 정보를 불러올 수 없습니다. ID: " + statId);
-//        }
-//
-//        // 3. [데이터 추출] 0번 로우에서 엔티티를 꺼내 DTO로 변환
-//        StationEntity entity = (StationEntity) results.get(0)[0];
-//        StationDto dto = mapStruct.toDto(entity);
-//
-//        // 4. [요금 조립] 리스트를 돌며 올해/작년 요금을 찾아 DTO에 세팅
-//        Double currPrice = null;
-//        Double lastPrice = null;
-//
-//        for (Object[] row : results) {
-//            ChargerPriceEntity priceEntity = (ChargerPriceEntity) row[1];
-//            if (priceEntity.getApplyYear() == currYear) currPrice = ChargerPriceEntity.getPrice();
-//            else if (priceEntity.getApplyYear() == lastYear) lastPrice = priceEntity.getPrice();
-//        }
-//
-//        // 5. [올라가는 길] DTO 내부 로직 실행 (계절, 요금차이 계산)
-//        dto.setPriceComparison(currPrice, lastPrice, Integer.parseInt(currentMonth));
-//
-//        // 6. [최종 반환] 모든 정보가 꽉 찬 DTO가 컨트롤러로 올라감
-//        return dto;
-//    }
-//
-//    // 계절 판별 보조 메서드
-//    private String determineSeason(String monthStr) {
-//        int month = Integer.parseInt(monthStr);
-//        if (month >= 3 && month <= 5 || month >= 9 && month <= 11) return "봄/가을";
-//        if (month >= 6 && month <= 8) return "여름";
-//        return "겨울";
-//    }
+    @Transactional(readOnly = true)
+    public StationDto getStationDetail(String statId, String type, String currentMonth, double lat, double lng) {
+        // 1. 연도 설정 (데이터에 2026, 2025가 있으므로 이에 맞춤)
+        int currYear = 2026;
+        int lastYear = 2025;
+
+        // 💡 2. 계절 판별 (DB 값인 "봄가을"로 리턴되도록 수정됨)
+        String season = determineSeason(Integer.parseInt(currentMonth));
+
+        List<Object[]> results = stationRepository.findStationDetailWithPriceHistory(
+                statId, type, season, currYear, lastYear, lat, lng
+        );
+
+        if (results == null || results.isEmpty()) throw new RuntimeException("정보 없음");
+
+        Object[] row = results.get(0);
+        StationDto dto = new StationDto();
+
+        // [1, 2, 9, 10, 11] 기본 정보
+        dto.setStatNm(String.valueOf(row[0]));
+        dto.setAddr(String.valueOf(row[1]));
+        dto.setBnm(String.valueOf(row[2]));
+        dto.setLocation(row[3] != null ? row[3].toString() : "정보없음");
+        dto.setUseTime(String.valueOf(row[4]));
+
+        // [6, 7, 8] 제약 사항
+        dto.setLimitYn(String.valueOf(row[5]));
+        dto.setParkingFree(String.valueOf(row[6]));
+        dto.setLimitDetail(row[7] != null ? row[7].toString() : "-");
+
+        // [12] 업데이트 날짜
+        if (row[8] != null) {
+            dto.setLastUpdated(((java.sql.Timestamp) row[8]).toLocalDateTime().toLocalDate().toString());
+        }
+
+        // [3] 거리 및 [5] 현황
+        dto.setDistance(((Number) row[9]).doubleValue());
+        int total = ((Number) row[10]).intValue();
+        int available = ((Number) row[11]).intValue();
+        int broken = ((Number) row[12]).intValue();
+        // 📊 현황 포맷: 2/4 (고장 2)
+        dto.setOccupancy(available + "/" + total + " (고장 " + broken + ")");
+
+        // 💡 [4] 요금 계산 (Number 타입으로 안전하게 캐스팅)
+        Double currentPrice = null;
+        Double lastYearPrice = null;
+
+        for (Object[] r : results) {
+            if (r[13] != null && r[14] != null) {
+                double price = ((Number) r[13]).doubleValue();
+                int year = ((Number) r[14]).intValue();
+
+                if (year == currYear) currentPrice = price;
+                else if (year == lastYear) lastYearPrice = price;
+            }
+        }
+
+        dto.setCurrentPrice(currentPrice);
+        dto.setLastYearPrice(lastYearPrice);
+        dto.setPriceDiff(currentPrice != null && lastYearPrice != null ? currentPrice - lastYearPrice : null);
+        dto.setSeason(season); // "봄가을"
+
+        return dto;
+    }
+
+    // 💡 슬래시 제거 버전
+    private String determineSeason(int month) {
+        if (month >= 3 && month <= 5 || month >= 9 && month <= 11) return "봄가을";
+        if (month >= 6 && month <= 8) return "여름";
+        return "겨울";
+    }
     /**
      * [기능] 충전소 통합 검색
      * - 검색어(키워드)를 입력받아 충전소명이나 주소 등에서 일치하는 데이터를 찾습니다.
@@ -290,14 +316,16 @@ private void processTypeDetail(StationDto dto, String type, List<ChargerEntity> 
     private void executeBatchMerge(List<JSONObject> list) {
         log.info(">>> DB MERGE 실행: {}건", list.size());
 
+        // SQL 수정: UPDATE SET과 INSERT VALUES 끝에 UPDATED_AT 추가
         String sql = "MERGE INTO STATION s USING DUAL ON (s.STAT_ID = ?) " +
                 "WHEN MATCHED THEN UPDATE SET " +
                 "s.STAT_NM=?, s.ADDR=?, s.LOCATION=?, s.LAT=?, s.LNG=?, " +
                 "s.USE_TIME=?, s.BNM=?, s.ZCODE=?, s.ZSCODE=?, s.KIND=?, " +
-                "s.PARKING_FREE=?, s.LIMIT_YN=?, s.LIMIT_DETAIL=? " +
+                "s.PARKING_FREE=?, s.LIMIT_YN=?, s.LIMIT_DETAIL=?, " +
+                "s.UPDATED_AT = SYSDATE " + // 1. 업데이트 시 현재 시간 기록
                 "WHEN NOT MATCHED THEN INSERT " +
-                "(STAT_ID, STAT_NM, ADDR, LOCATION, LAT, LNG, USE_TIME, BNM, ZCODE, ZSCODE, KIND, PARKING_FREE, LIMIT_YN, LIMIT_DETAIL) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "(STAT_ID, STAT_NM, ADDR, LOCATION, LAT, LNG, USE_TIME, BNM, ZCODE, ZSCODE, KIND, PARKING_FREE, LIMIT_YN, LIMIT_DETAIL, UPDATED_AT) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE)"; // 2. 신규 삽입 시 현재 시간 기록
 
         jdbcTemplate.batchUpdate(sql, new org.springframework.jdbc.core.BatchPreparedStatementSetter() {
             @Override
@@ -305,8 +333,8 @@ private void processTypeDetail(StationDto dto, String type, List<ChargerEntity> 
                 JSONObject item = list.get(i);
                 String sid = item.optString("statId", "").trim().toUpperCase().replaceAll("\\s+", "");
 
-                // 파라미터 세팅 (1~14: ON 및 UPDATE / 15~28: INSERT)
-                ps.setString(1, sid);
+                // --- [UPDATE 및 ON 조건용 파라미터] ---
+                ps.setString(1, sid);                  // ON 조건 (STAT_ID)
                 ps.setString(2, item.optString("statNm", ""));
                 ps.setString(3, item.optString("addr", ""));
                 ps.setString(4, item.optString("location", ""));
@@ -325,8 +353,9 @@ private void processTypeDetail(StationDto dto, String type, List<ChargerEntity> 
                 ps.setString(13, lyn.length() > 1 ? lyn.substring(0, 1) : lyn);
 
                 ps.setString(14, item.optString("limitDetail", ""));
+                // (15번은 SQL에서 직접 SYSDATE를 넣으므로 ps.set은 필요 없음)
 
-                // INSERT용 동일 데이터 반복
+                // --- [INSERT용 파라미터] ---
                 ps.setString(15, sid);
                 ps.setString(16, item.optString("statNm", ""));
                 ps.setString(17, item.optString("addr", ""));
@@ -341,13 +370,12 @@ private void processTypeDetail(StationDto dto, String type, List<ChargerEntity> 
                 ps.setString(26, pfr.length() > 1 ? pfr.substring(0, 1) : pfr);
                 ps.setString(27, lyn.length() > 1 ? lyn.substring(0, 1) : lyn);
                 ps.setString(28, item.optString("limitDetail", ""));
+                // (마지막 SYSDATE도 자동 삽입됨)
             }
 
             @Override
             public int getBatchSize() { return list.size(); }
         });
     }
-
-
 }
 
