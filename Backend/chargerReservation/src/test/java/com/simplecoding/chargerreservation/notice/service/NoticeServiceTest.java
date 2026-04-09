@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Rollback;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -55,5 +56,44 @@ class NoticeServiceTest {
         assertEquals("테스트 공지사항 내용입니다.", savedEntity.getContent());
 
         System.out.println("등록된 공지사항 ID: " + savedEntity.getNoticeId());
+    }
+
+    @Test
+    @DisplayName("4번 공지사항 수정 테스트")
+    void updateNotice() {
+        // 1. Given: 4번 데이터가 DB에 있다는 가정하에 ID를 지정합니다.
+        // (만약 @Transactional 때문에 데이터가 없다면 임시로 생성해줍니다)
+        Long targetId = 4L;
+
+        // 만약 4번 데이터가 없을 경우를 대비한 안전장치 (실제 DB에 4번이 있다면 생략 가능)
+        if (!noticeRepository.existsById(targetId)) {
+            noticeRepository.save(NoticeEntity.builder()
+                    .noticeId(targetId) // 시퀀스 대신 직접 지정 (테스트용)
+                    .title("테스트 공지사항 제목")
+                    .content("테스트 공지사항 내용입니다.")
+                    .writerId("admin_01")
+                    .fixYn("N")
+                    .deleteYn("N")
+                    .build());
+        }
+
+        // 2. When: 수정 요청 데이터 준비
+        NoticeRequestDto updateDto = new NoticeRequestDto();
+        updateDto.setTitle("[수정 완료] 점검 공지");
+        updateDto.setContent("내용이 수정되었습니다.");
+        updateDto.setFixYn("Y");
+
+        // 서비스 메서드 호출
+        NoticeResponseDto result = noticeService.updateNotice(targetId, updateDto);
+
+        // 3. Then: 검증
+        assertThat(result.getTitle()).isEqualTo("[수정 완료] 점검 공지");
+        assertThat(result.getFixYn()).isEqualTo("Y");
+
+        // DB에서 다시 꺼내서 수정 시간이 갱신되었는지 확인
+        NoticeEntity updatedEntity = noticeRepository.findById(targetId).orElseThrow();
+        System.out.println("수정 시간: " + updatedEntity.getUpdateTime());
+
+        assertThat(updatedEntity.getTitle()).contains("수정");
     }
 }
