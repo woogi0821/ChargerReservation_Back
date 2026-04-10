@@ -99,7 +99,7 @@ public class StationDto {
      */
     public String getPriceDisplayText() {
         if (this.currentPrice == null || this.currentPrice <= 0) {
-            return "현장에서 확인하세요";
+            return "현장확인";
         }
         return String.format("%.1f원/kWh", this.currentPrice);
     }

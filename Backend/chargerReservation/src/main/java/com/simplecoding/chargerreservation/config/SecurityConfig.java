@@ -53,6 +53,7 @@ public class SecurityConfig {
                 .requestMatchers("/download/**", "/images/**", "/css/**","/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**","/v3/api-docs.yaml").permitAll()
                 .requestMatchers("/").permitAll()
+                .requestMatchers("/api/notices/**").permitAll()// 공지사항 테스트용
                 .anyRequest().authenticated() // 그 외 모든 요청은 토큰이 있어야 함
             )
             // 소셜 로그인 설정

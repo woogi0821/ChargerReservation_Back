@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
-@CrossOrigin(origins = "http://172.27.80.1:5501") // 모든 도메인에서의 접속을 허용 (테스트용)
 @Slf4j
 @RestController
 @RequestMapping("/api/stations")
