@@ -11,9 +11,21 @@ import jakarta.persistence.Id;
 @Getter
 @Setter
 @NoArgsConstructor
+
+@SequenceGenerator(
+        // 1. 시퀀스 생성기 선언 (이름과 실제 DB 시퀀스명을 매핑)
+        name = "PENALTY_SEQ_GENERATOR",
+        sequenceName = "SEQ_PENALTY_ID", // 실제 오라클 DB에 생성될 시퀀스 이름
+        initialValue = 1,
+        allocationSize = 1
+)
 public class PenaltyHistory extends BaseTimeEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // 2. 위에서 만든 생성기를 사용하도록 설정
+    @GeneratedValue(
+            strategy = GenerationType.SEQUENCE,
+            generator = "PENALTY_SEQ_GENERATOR"
+    )
     private Long penaltyId;
 
     private String memberId;
