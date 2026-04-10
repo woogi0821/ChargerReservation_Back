@@ -28,14 +28,14 @@ public class AdminService {
     private final AdminRepository adminRepository;
     private final MemberRepository memberRepository;
 
-     private Admin getRequesterAdmin() {
-         String loginId = SecurityUtil.getCurrentLoginId();
-         Member member = memberRepository.findByLoginId(loginId)
-                 .orElseThrow(() -> new RuntimeException("인증된 회원을 찾을 수 없습니다"));
-         return adminRepository.findByMemberId(member.getMemberId())
-                 .orElseThrow(() -> new ResponseStatusException(
-                         HttpStatus.FORBIDDEN, "관리자 권한이 없습니다"));
-     }
+    private Admin getRequesterAdmin() {
+        String loginId = SecurityUtil.getCurrentLoginId();
+        Member member = memberRepository.findByLoginId(loginId)
+                .orElseThrow(() -> new RuntimeException("인증된 회원을 찾을 수 없습니다"));
+        return adminRepository.findByMemberId(member.getMemberId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "관리자 권한이 없습니다"));
+    }
 
     // ── 관리자 전체 목록 조회 ────────────────────────────────────────────────────
     // 등록된 관리자 전체 목록을 반환
@@ -58,15 +58,21 @@ public class AdminService {
 
     // ── 관리자 등록 ──────────────────────────────────────────────────────────────
     // 특정 회원(memberId)을 관리자로 등록
-    // adminPart 기본값은 Admin 엔티티 생성자에서 "ALL" 로 세팅됨
+    // 등록 완료 후 해당 회원의 MEMBER_GRADE 를 'Y' (관리자) 로 변경
     public AdminDto createAdmin(AdminDto dto) {
         // 등록 대상 회원이 실제로 존재하는지 검증
-        memberRepository.findById(dto.getMemberId())
+        Member member = memberRepository.findById(dto.getMemberId())
                 .orElseThrow(() -> new RuntimeException("등록 대상 회원을 찾을 수 없습니다"));
 
-        // Admin 엔티티 생성 (memberId + adminRole, adminPart 기본값 = ALL)
+        // Admin 엔티티 생성 후 저장
         Admin admin = new Admin(dto.getMemberId(), dto.getAdminRole());
-        return AdminDto.from(adminRepository.save(admin));
+        adminRepository.save(admin);
+
+        // 관리자 등록 시 MEMBER_GRADE 'Y' 로 변경 → JWT 권한 체크 기준값
+        member.setMemberGrade("Y");
+        memberRepository.save(member);
+
+        return AdminDto.from(admin);
     }
 
 
@@ -102,8 +108,8 @@ public class AdminService {
 
 
     // ── 관리자 해제 (SUPER 만 가능) ──────────────────────────────────────────────
-    // requesterId : 요청을 보낸 관리자의 adminId (본인이 SUPER 인지 검증용)
     // targetId    : 해제할 대상 관리자의 adminId
+    // 해제 완료 후 해당 회원의 MEMBER_GRADE 를 'N' (일반회원) 으로 복구
     public void deleteAdmin(Long targetId) {
 
         // 요청자 조회 및 SUPER 권한 검증
@@ -123,6 +129,12 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("대상 관리자를 찾을 수 없습니다"));
 
         adminRepository.delete(target);
+
+        // 관리자 해제 시 MEMBER_GRADE 'N' 으로 복구 → 일반 회원 등급으로 되돌림
+        Member member = memberRepository.findById(target.getMemberId())
+                .orElseThrow(() -> new RuntimeException("회원을 찾을 수 없습니다"));
+        member.setMemberGrade("N");
+        memberRepository.save(member);
     }
 
 
@@ -157,7 +169,6 @@ public class AdminService {
     public AdminMemberDto updateMemberStatus(Long memberId, String newStatus) {
 
         Admin requester = getRequesterAdmin();
-
 
         // SUPER 역할이거나 담당 파트가 MEMBER 인 경우에만 허용
         boolean isSuperRole  = requester.getAdminRole().equals("SUPER");

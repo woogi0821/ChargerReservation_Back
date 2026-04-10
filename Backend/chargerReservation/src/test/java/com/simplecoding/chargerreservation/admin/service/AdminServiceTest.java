@@ -1,29 +1,30 @@
 package com.simplecoding.chargerreservation.admin.service;
 
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
 import com.simplecoding.chargerreservation.admin.entity.Admin;
 import com.simplecoding.chargerreservation.admin.repository.AdminRepository;
+import com.simplecoding.chargerreservation.common.SecurityUtil;
 import com.simplecoding.chargerreservation.member.entity.Member;
 import com.simplecoding.chargerreservation.member.repository.MemberRepository;
-import com.simplecoding.chargerreservation.member.service.MemberService;
-import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
-@Log4j2
-//@SpringBootTest
 @ExtendWith(MockitoExtension.class)
 class AdminServiceTest {
 
@@ -36,17 +37,35 @@ class AdminServiceTest {
     @InjectMocks
     private AdminService adminService;
 
-// ════════════════════════════════════════════════════════════════════════════
-// 관리자 전체 목록 조회 테스트
-// ════════════════════════════════════════════════════════════════════════════
+
+    // ── 테스트용 헬퍼 ────────────────────────────────────────────────────────────
+
+    // Admin 의 adminId 는 DB 시퀀스로 생성되므로 ReflectionTestUtils 로 강제 세팅
+    private Admin createAdmin(Long adminId, Long memberId, String role) {
+        Admin admin = new Admin(memberId, role);
+        ReflectionTestUtils.setField(admin, "adminId", adminId);
+        return admin;
+    }
+
+    // getRequesterAdmin() 내부 호출 체인 Mock 세팅
+    // SecurityUtil → loginId → memberRepository → Member → adminRepository → Admin
+    private void mockRequesterChain(MockedStatic<SecurityUtil> securityUtil, Admin requester) {
+        Member mockMember = Member.builder().memberId(requester.getMemberId()).build();
+        securityUtil.when(SecurityUtil::getCurrentLoginId).thenReturn("testAdmin");
+        when(memberRepository.findByLoginId("testAdmin")).thenReturn(Optional.of(mockMember));
+        when(adminRepository.findByMemberId(requester.getMemberId())).thenReturn(Optional.of(requester));
+    }
+
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 관리자 전체 목록 조회 테스트
+    // ════════════════════════════════════════════════════════════════════════════
 
     @Test
     @DisplayName("관리자 목록 조회 — 성공 : 이름 포함 반환")
     void getAdminList_성공() {
-        // given
         Admin mockAdmin1 = new Admin(1L, "SUPER");
         Admin mockAdmin2 = new Admin(2L, "MANAGER");
-
         Member mockMember1 = Member.builder().memberId(1L).name("홍길동").build();
         Member mockMember2 = Member.builder().memberId(2L).name("김철수").build();
 
@@ -54,10 +73,8 @@ class AdminServiceTest {
         when(memberRepository.findById(1L)).thenReturn(Optional.of(mockMember1));
         when(memberRepository.findById(2L)).thenReturn(Optional.of(mockMember2));
 
-        // when
         List<AdminDto> result = adminService.getAdminList();
 
-        // then
         assertEquals(2, result.size());
         assertEquals("홍길동", result.get(0).getName());
         assertEquals("김철수", result.get(1).getName());
@@ -66,54 +83,343 @@ class AdminServiceTest {
     @Test
     @DisplayName("관리자 목록 조회 — 성공 : 등록된 관리자 없음")
     void getAdminList_빈목록() {
-        // given
         when(adminRepository.findAll()).thenReturn(List.of());
 
-        // when
         List<AdminDto> result = adminService.getAdminList();
 
-        // then
         assertEquals(0, result.size());
     }
 
     @Test
     @DisplayName("관리자 목록 조회 — 성공 : 매핑 회원 없을 때 이름 '알 수 없음' 처리")
     void getAdminList_멤버없을때() {
-        // given — Admin 은 있지만 연결된 Member 가 없는 케이스
         Admin mockAdmin = new Admin(1L, "SUPER");
 
         when(adminRepository.findAll()).thenReturn(List.of(mockAdmin));
         when(memberRepository.findById(1L)).thenReturn(Optional.empty());
 
-        // when
         List<AdminDto> result = adminService.getAdminList();
 
-        // then — 이름이 "알 수 없음" 으로 반환되어야 함
         assertEquals(1, result.size());
         assertEquals("알 수 없음", result.get(0).getName());
     }
 
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 관리자 등록 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
     @Test
-    void createAdmin() {
+    @DisplayName("관리자 등록 — 성공 : Admin 저장 + MEMBER_GRADE 'Y' 업데이트")
+    void createAdmin_성공() {
+        AdminDto requestDto = new AdminDto(null, 1L, "MANAGER", "ALL");
+        Member mockMember = Member.builder().memberId(1L).name("홍길동").build();
+        Admin savedAdmin = new Admin(1L, "MANAGER");
+
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(mockMember));
+        when(adminRepository.save(any(Admin.class))).thenReturn(savedAdmin);
+        // MEMBER_GRADE "Y" 업데이트 후 memberRepository.save() 호출 Mock
+        when(memberRepository.save(any(Member.class))).thenReturn(mockMember);
+
+        AdminDto result = adminService.createAdmin(requestDto);
+
+        assertEquals(1L, result.getMemberId());
+        assertEquals("MANAGER", result.getAdminRole());
+        verify(adminRepository, times(1)).save(any(Admin.class));
+        // memberGrade "Y" 저장이 실제로 호출됐는지 검증
+        verify(memberRepository, times(1)).save(any(Member.class));
     }
 
     @Test
-    void getAdmin() {
+    @DisplayName("관리자 등록 — 실패 : 존재하지 않는 회원")
+    void createAdmin_실패_없는회원() {
+        AdminDto requestDto = new AdminDto(null, 999L, "MANAGER", "ALL");
+
+        when(memberRepository.findById(999L)).thenReturn(Optional.empty());
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> adminService.createAdmin(requestDto));
+
+        assertEquals("등록 대상 회원을 찾을 수 없습니다", exception.getMessage());
+    }
+
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 관리자 단건 조회 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("관리자 단건 조회 — 성공")
+    void getAdmin_성공() {
+        Admin mockAdmin = new Admin(1L, "SUPER");
+        when(adminRepository.findById(1L)).thenReturn(Optional.of(mockAdmin));
+
+        AdminDto result = adminService.getAdmin(1L);
+
+        assertEquals(1L, result.getMemberId());
+        assertEquals("SUPER", result.getAdminRole());
     }
 
     @Test
-    void updateAdminRole() {
+    @DisplayName("관리자 단건 조회 — 실패 : 존재하지 않는 adminId")
+    void getAdmin_실패_없는관리자() {
+        when(adminRepository.findById(999L)).thenReturn(Optional.empty());
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> adminService.getAdmin(999L));
+
+        assertEquals("관리자를 찾을 수 없습니다", exception.getMessage());
+    }
+
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 관리자 역할 변경 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("관리자 역할 변경 — 성공 : SUPER 가 MANAGER → VIEWER 변경")
+    void updateAdminRole_성공() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        Admin mockTarget    = createAdmin(2L, 2L, "MANAGER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(adminRepository.findById(2L)).thenReturn(Optional.of(mockTarget));
+            when(adminRepository.save(any(Admin.class))).thenReturn(mockTarget);
+
+            AdminDto result = adminService.updateAdminRole(2L, "VIEWER");
+
+            assertEquals("VIEWER", result.getAdminRole());
+        }
     }
 
     @Test
-    void deleteAdmin() {
+    @DisplayName("관리자 역할 변경 — 실패 : SUPER 아닌 관리자가 요청 (403)")
+    void updateAdminRole_실패_권한없음() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+
+            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                    () -> adminService.updateAdminRole(2L, "VIEWER"));
+
+            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        }
+    }
+
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 관리자 해제 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("관리자 해제 — 성공 : SUPER 가 다른 관리자 해제 + MEMBER_GRADE 'N' 복구")
+    void deleteAdmin_성공() {
+        Admin mockRequester     = createAdmin(1L, 1L, "SUPER");
+        Admin mockTarget        = createAdmin(2L, 2L, "MANAGER");
+        // 해제 대상 관리자의 Member 엔티티 (memberGrade = "Y" → "N" 으로 복구 대상)
+        Member mockTargetMember = Member.builder().memberId(2L).memberGrade("Y").build();
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(adminRepository.findById(2L)).thenReturn(Optional.of(mockTarget));
+            // deleteAdmin() 내부에서 target.getMemberId() 로 회원 조회
+            when(memberRepository.findById(2L)).thenReturn(Optional.of(mockTargetMember));
+            when(memberRepository.save(any(Member.class))).thenReturn(mockTargetMember);
+
+            assertDoesNotThrow(() -> adminService.deleteAdmin(2L));
+            verify(adminRepository, times(1)).delete(mockTarget);
+            // memberGrade "N" 복구 저장이 실제로 호출됐는지 검증
+            verify(memberRepository, times(1)).save(any(Member.class));
+        }
     }
 
     @Test
-    void getMemberList() {
+    @DisplayName("관리자 해제 — 실패 : SUPER 아닌 관리자가 요청 (403)")
+    void deleteAdmin_실패_권한없음() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+
+            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                    () -> adminService.deleteAdmin(2L));
+
+            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        }
     }
 
     @Test
-    void updateMemberStatus() {
+    @DisplayName("관리자 해제 — 실패 : 자기 자신 해제 시도")
+    void deleteAdmin_실패_자기자신해제() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+
+            RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> adminService.deleteAdmin(1L));
+
+            assertEquals("자기 자신은 해제할 수 없습니다", exception.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("관리자 해제 — 실패 : 존재하지 않는 대상 adminId")
+    void deleteAdmin_실패_없는관리자() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(adminRepository.findById(999L)).thenReturn(Optional.empty());
+
+            RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> adminService.deleteAdmin(999L));
+
+            assertEquals("대상 관리자를 찾을 수 없습니다", exception.getMessage());
+        }
+    }
+
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 회원 전체 목록 조회 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("회원 목록 조회 — 성공 : SUPER 역할 요청자")
+    void getMemberList_성공_SUPER() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        Member m1 = Member.builder().memberId(2L).loginId("user1").name("홍길동").email("u1@test.com").phone("010-1111-1111").status("ACTIVE").penaltyCount(0).build();
+        Member m2 = Member.builder().memberId(3L).loginId("user2").name("김철수").email("u2@test.com").phone("010-2222-2222").status("SUSPENDED").penaltyCount(1).build();
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(memberRepository.findAll()).thenReturn(List.of(m1, m2));
+
+            List<AdminMemberDto> result = adminService.getMemberList();
+
+            assertEquals(2, result.size());
+            assertEquals("홍길동", result.get(0).getName());
+        }
+    }
+
+    @Test
+    @DisplayName("회원 목록 조회 — 성공 : MEMBER 파트 관리자 요청자")
+    void getMemberList_성공_MEMBER파트() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+        mockRequester.updatePart("MEMBER");
+        Member mockMember = Member.builder().memberId(2L).loginId("user1").name("홍길동").status("ACTIVE").penaltyCount(0).build();
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(memberRepository.findAll()).thenReturn(List.of(mockMember));
+
+            List<AdminMemberDto> result = adminService.getMemberList();
+
+            assertEquals(1, result.size());
+        }
+    }
+
+    @Test
+    @DisplayName("회원 목록 조회 — 성공 : 등록된 회원 없음")
+    void getMemberList_빈목록() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(memberRepository.findAll()).thenReturn(List.of());
+
+            List<AdminMemberDto> result = adminService.getMemberList();
+
+            assertEquals(0, result.size());
+        }
+    }
+
+    @Test
+    @DisplayName("회원 목록 조회 — 실패 : MEMBER 파트 아닌 관리자 접근 (403)")
+    void getMemberList_실패_권한없음() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+        mockRequester.updatePart("CHARGER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+
+            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                    () -> adminService.getMemberList());
+
+            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        }
+    }
+
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 회원 상태 변경 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("회원 상태 변경 — 정지 처리 : suspendedUntil 24시간 자동 세팅")
+    void updateMemberStatus_정지처리() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        Member mockMember = Member.builder().memberId(2L).loginId("user1").name("홍길동").status("ACTIVE").penaltyCount(0).build();
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(memberRepository.findById(2L)).thenReturn(Optional.of(mockMember));
+            when(memberRepository.save(any(Member.class))).thenReturn(mockMember);
+
+            AdminMemberDto result = adminService.updateMemberStatus(2L, "SUSPENDED");
+
+            assertEquals("SUSPENDED", result.getStatus());
+        }
+    }
+
+    @Test
+    @DisplayName("회원 상태 변경 — 정지 해제 : suspendedUntil null 초기화")
+    void updateMemberStatus_정지해제() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        Member mockMember = Member.builder().memberId(2L).loginId("user1").name("홍길동").status("SUSPENDED").penaltyCount(0).build();
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(memberRepository.findById(2L)).thenReturn(Optional.of(mockMember));
+            when(memberRepository.save(any(Member.class))).thenReturn(mockMember);
+
+            AdminMemberDto result = adminService.updateMemberStatus(2L, "ACTIVE");
+
+            assertEquals("ACTIVE", result.getStatus());
+        }
+    }
+
+    @Test
+    @DisplayName("회원 상태 변경 — 실패 : 존재하지 않는 회원")
+    void updateMemberStatus_실패_없는회원() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(memberRepository.findById(999L)).thenReturn(Optional.empty());
+
+            RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> adminService.updateMemberStatus(999L, "SUSPENDED"));
+
+            assertEquals("회원을 찾을 수 없습니다", exception.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("회원 상태 변경 — 실패 : MEMBER 파트 아닌 관리자 접근 (403)")
+    void updateMemberStatus_실패_권한없음() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+        mockRequester.updatePart("CHARGER");
+
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+
+            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                    () -> adminService.updateMemberStatus(2L, "SUSPENDED"));
+
+            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        }
     }
 }
