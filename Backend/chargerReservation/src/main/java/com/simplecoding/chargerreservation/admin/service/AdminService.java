@@ -63,6 +63,7 @@ public class AdminService {
         Admin admin = new Admin(dto.getMemberId(), dto.getAdminRole());
         adminRepository.save(admin);
 
+        // 관리자 등록 시 MEMBER_GRADE 'Y' 로 변경
         member.setMemberGrade("Y");
         memberRepository.save(member);
 
@@ -111,20 +112,23 @@ public class AdminService {
 
         adminRepository.delete(target);
 
+        // 관리자 해제 시 MEMBER_GRADE 'N' 으로 복구
         Member member = memberRepository.findById(target.getMemberId())
                 .orElseThrow(() -> new RuntimeException("회원을 찾을 수 없습니다"));
         member.setMemberGrade("N");
         memberRepository.save(member);
     }
 
-    // ── 회원 전체 목록 조회 (SUPER 또는 MEMBER 파트만 가능) ──────────────────────
+    // ── 회원 전체 목록 조회 (SUPER / ALL / MEMBER 파트만 가능) ───────────────────
     @Transactional(readOnly = true)
     public List<AdminMemberDto> getMemberList() {
 
         Admin requester = getRequesterAdmin();
 
         boolean isSuperRole  = requester.getAdminRole().equals("SUPER");
-        boolean isMemberPart = requester.getAdminPart().equals("MEMBER");
+        // ALL 파트는 모든 영역 접근 가능 → MEMBER 파트와 동일하게 허용
+        boolean isMemberPart = requester.getAdminPart().equals("MEMBER")
+                || requester.getAdminPart().equals("ALL");
 
         if (!isSuperRole && !isMemberPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "회원 조회 권한이 없습니다");
@@ -136,13 +140,15 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // ── 회원 상태 변경 (SUPER 또는 MEMBER 파트만 가능) ──────────────────────────
+    // ── 회원 상태 변경 (SUPER / ALL / MEMBER 파트만 가능) ────────────────────────
     public AdminMemberDto updateMemberStatus(Long memberId, String newStatus) {
 
         Admin requester = getRequesterAdmin();
 
         boolean isSuperRole  = requester.getAdminRole().equals("SUPER");
-        boolean isMemberPart = requester.getAdminPart().equals("MEMBER");
+        // ALL 파트는 모든 영역 접근 가능 → MEMBER 파트와 동일하게 허용
+        boolean isMemberPart = requester.getAdminPart().equals("MEMBER")
+                || requester.getAdminPart().equals("ALL");
 
         if (!isSuperRole && !isMemberPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "회원 상태 변경 권한이 없습니다");
@@ -164,15 +170,16 @@ public class AdminService {
         return AdminMemberDto.from(memberRepository.save(member));
     }
 
-    // ── 패널티 전체 목록 조회 ────────────────────────────────────────────────────
-    // SUPER 또는 INQUIRY 파트만 접근 가능
+    // ── 패널티 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ────────────────
     @Transactional(readOnly = true)
     public List<AdminPenaltyDto> getPenaltyList() {
 
         Admin requester = getRequesterAdmin();
 
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY");
+        // ALL 파트는 모든 영역 접근 가능 → INQUIRY 파트와 동일하게 허용
+        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
+                || requester.getAdminPart().equals("ALL");
 
         if (!isSuperRole && !isInquiryPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "패널티 조회 권한이 없습니다");
@@ -184,29 +191,27 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // ── 패널티 취소 (SUPER 또는 INQUIRY 파트만 가능) ─────────────────────────────
-    // 패널티 STATUS 를 ACTIVE → CANCELED 로 변경
+    // ── 패널티 취소 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────────────
     public AdminPenaltyDto cancelPenalty(Long penaltyId) {
 
         Admin requester = getRequesterAdmin();
 
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY");
+        // ALL 파트는 모든 영역 접근 가능 → INQUIRY 파트와 동일하게 허용
+        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
+                || requester.getAdminPart().equals("ALL");
 
         if (!isSuperRole && !isInquiryPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "패널티 취소 권한이 없습니다");
         }
 
-        // 패널티 조회
         PenaltyHistory penalty = penaltyRepository.findById(penaltyId)
                 .orElseThrow(() -> new RuntimeException("패널티를 찾을 수 없습니다"));
 
-        // 이미 취소된 패널티 체크
         if (penalty.getStatus().equals(PenaltyStatus.CANCELED)) {
             throw new RuntimeException("이미 취소된 패널티입니다");
         }
 
-        // CANCELED 로 변경
         penalty.setStatus(PenaltyStatus.CANCELED);
 
         return AdminPenaltyDto.from(penaltyRepository.save(penalty));
