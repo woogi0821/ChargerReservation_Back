@@ -1,12 +1,17 @@
 package com.simplecoding.chargerreservation.admin.service;
 
+import com.simplecoding.chargerreservation.admin.dto.AdminChargerDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminNoticeDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminPenaltyDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminReservationDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminStationDto;
 import com.simplecoding.chargerreservation.admin.entity.Admin;
 import com.simplecoding.chargerreservation.admin.repository.AdminRepository;
+import com.simplecoding.chargerreservation.charger.entity.ChargerEntity;
+import com.simplecoding.chargerreservation.charger.entity.ChargerId;
+import com.simplecoding.chargerreservation.charger.repository.ChargerRepository;
 import com.simplecoding.chargerreservation.common.SecurityUtil;
 import com.simplecoding.chargerreservation.member.entity.Member;
 import com.simplecoding.chargerreservation.member.repository.MemberRepository;
@@ -17,6 +22,7 @@ import com.simplecoding.chargerreservation.penalty.entity.PenaltyStatus;
 import com.simplecoding.chargerreservation.penalty.repository.PenaltyRepository;
 import com.simplecoding.chargerreservation.reservation.entity.Reservation;
 import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
+import com.simplecoding.chargerreservation.station.repository.StationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -37,6 +43,8 @@ public class AdminService {
     private final PenaltyRepository penaltyRepository;
     private final ReservationRepository reservationRepository;
     private final NoticeRepository noticeRepository;
+    private final StationRepository stationRepository;
+    private final ChargerRepository chargerRepository;
 
     // ── 요청자 관리자 조회 헬퍼 ─────────────────────────────────────────────────
     private Admin getRequesterAdmin() {
@@ -262,7 +270,6 @@ public class AdminService {
     }
 
     // ── 공지사항 삭제 (SUPER 만 가능) ────────────────────────────────────────────
-    // 실제 삭제 X → deleteYn = Y 로 변경 (소프트 삭제)
     public void deleteNotice(Long noticeId) {
         Admin requester = getRequesterAdmin();
         if (!requester.getAdminRole().equals("SUPER")) {
@@ -276,5 +283,66 @@ public class AdminService {
         notice.setDeleteYn("Y");
         notice.setDeleteTime(LocalDateTime.now());
         noticeRepository.save(notice);
+    }
+
+    // ── 충전소 전체 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ────────────────
+    @Transactional(readOnly = true)
+    public List<AdminStationDto> getStationList() {
+        Admin requester = getRequesterAdmin();
+        boolean isSuperRole    = requester.getAdminRole().equals("SUPER");
+        boolean isChargerPart  = requester.getAdminPart().equals("CHARGER")
+                || requester.getAdminPart().equals("ALL");
+        if (!isSuperRole && !isChargerPart) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전소 조회 권한이 없습니다");
+        }
+        // 상위 100건만 반환
+        return stationRepository.findAll(
+                        org.springframework.data.domain.PageRequest.of(0, 100))
+                .stream()
+                .map(AdminStationDto::from)
+                .collect(Collectors.toList());
+    }
+
+    // ── 충전기 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
+    @Transactional(readOnly = true)
+    public List<AdminChargerDto> getChargerList(String statId) {
+        Admin requester = getRequesterAdmin();
+        boolean isSuperRole    = requester.getAdminRole().equals("SUPER");
+        boolean isChargerPart  = requester.getAdminPart().equals("CHARGER")
+                || requester.getAdminPart().equals("ALL");
+        if (!isSuperRole && !isChargerPart) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전기 조회 권한이 없습니다");
+        }
+
+        // statId 있으면 특정 충전소 충전기만 조회
+        // statId 없으면 상위 100건만 조회
+        if (statId != null && !statId.isEmpty()) {
+            return chargerRepository.findByStatId(statId)
+                    .stream()
+                    .map(AdminChargerDto::from)
+                    .collect(Collectors.toList());
+        }
+
+        return chargerRepository.findAll(
+                        org.springframework.data.domain.PageRequest.of(0, 100))
+                .stream()
+                .map(AdminChargerDto::from)
+                .collect(Collectors.toList());
+    }
+
+    // ── 충전기 상태 변경 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
+    public AdminChargerDto updateChargerStat(String statId, String chargerId, String newStat) {
+        Admin requester = getRequesterAdmin();
+        boolean isSuperRole    = requester.getAdminRole().equals("SUPER");
+        boolean isChargerPart  = requester.getAdminPart().equals("CHARGER")
+                || requester.getAdminPart().equals("ALL");
+        if (!isSuperRole && !isChargerPart) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전기 상태 변경 권한이 없습니다");
+        }
+        ChargerId id = new ChargerId(statId, chargerId);
+        ChargerEntity charger = chargerRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("충전기를 찾을 수 없습니다"));
+        charger.setStat(newStat);
+        return AdminChargerDto.from(chargerRepository.save(charger));
     }
 }

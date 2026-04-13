@@ -1,12 +1,17 @@
 package com.simplecoding.chargerreservation.admin.service;
 
+import com.simplecoding.chargerreservation.admin.dto.AdminChargerDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminNoticeDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminPenaltyDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminReservationDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminStationDto;
 import com.simplecoding.chargerreservation.admin.entity.Admin;
 import com.simplecoding.chargerreservation.admin.repository.AdminRepository;
+import com.simplecoding.chargerreservation.charger.entity.ChargerEntity;
+import com.simplecoding.chargerreservation.charger.entity.ChargerId;
+import com.simplecoding.chargerreservation.charger.repository.ChargerRepository;
 import com.simplecoding.chargerreservation.common.SecurityUtil;
 import com.simplecoding.chargerreservation.member.entity.Member;
 import com.simplecoding.chargerreservation.member.repository.MemberRepository;
@@ -17,6 +22,8 @@ import com.simplecoding.chargerreservation.penalty.entity.PenaltyStatus;
 import com.simplecoding.chargerreservation.penalty.repository.PenaltyRepository;
 import com.simplecoding.chargerreservation.reservation.entity.Reservation;
 import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
+import com.simplecoding.chargerreservation.station.entity.StationEntity;
+import com.simplecoding.chargerreservation.station.repository.StationRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +51,8 @@ class AdminServiceTest {
     @Mock private PenaltyRepository penaltyRepository;
     @Mock private ReservationRepository reservationRepository;
     @Mock private NoticeRepository noticeRepository;
+    @Mock private StationRepository stationRepository;
+    @Mock private ChargerRepository chargerRepository;
 
     @InjectMocks
     private AdminService adminService;
@@ -79,17 +88,37 @@ class AdminServiceTest {
         return reservation;
     }
 
-    // NoticeEntity 헬퍼
     private NoticeEntity createNotice(Long noticeId, String deleteYn) {
         NoticeEntity notice = NoticeEntity.builder()
-                .title("테스트 공지")
-                .content("테스트 내용")
-                .writerId("admin")
-                .fixYn("N")
-                .deleteYn(deleteYn)
-                .build();
+                .title("테스트 공지").content("테스트 내용")
+                .writerId("admin").fixYn("N").deleteYn(deleteYn).build();
         ReflectionTestUtils.setField(notice, "noticeId", noticeId);
         return notice;
+    }
+
+    // StationEntity 헬퍼
+    private StationEntity createStation(String statId) {
+        return StationEntity.builder()
+                .statId(statId)
+                .statNm("테스트 충전소")
+                .addr("서울시 테스트구")
+                .useTime("24시간")
+                .bnm("테스트운영사")
+                .parkingFree("Y")
+                .limitYn("N")
+                .build();
+    }
+
+    // ChargerEntity 헬퍼
+    private ChargerEntity createCharger(String statId, String chargerId, String stat) {
+        return ChargerEntity.builder()
+                .statId(statId)
+                .chargerId(chargerId)
+                .chargerType("급속")
+                .stat(stat)
+                .output(50)
+                .method("DC콤보")
+                .build();
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -418,7 +447,7 @@ class AdminServiceTest {
     @DisplayName("패널티 목록 조회 — 실패 : 권한 없음 (403)")
     void getPenaltyList_실패_권한없음() {
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("CHARGER");
+        mockRequester.updatePart("RESERVATION");
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -475,7 +504,7 @@ class AdminServiceTest {
     @DisplayName("패널티 취소 — 실패 : 권한 없음 (403)")
     void cancelPenalty_실패_권한없음() {
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("CHARGER");
+        mockRequester.updatePart("RESERVATION");
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -518,7 +547,7 @@ class AdminServiceTest {
     @DisplayName("예약 목록 조회 — 실패 : 권한 없음 (403)")
     void getReservationList_실패_권한없음() {
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("CHARGER");
+        mockRequester.updatePart("INQUIRY");
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -589,7 +618,7 @@ class AdminServiceTest {
     @DisplayName("예약 강제 취소 — 실패 : 권한 없음 (403)")
     void cancelReservation_실패_권한없음() {
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("CHARGER");
+        mockRequester.updatePart("INQUIRY");
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -607,10 +636,9 @@ class AdminServiceTest {
     void getNoticeList_성공() {
         NoticeEntity n1 = createNotice(1L, "N");
         NoticeEntity n2 = createNotice(2L, "N");
-        NoticeEntity n3 = createNotice(3L, "Y"); // 삭제된 것
+        NoticeEntity n3 = createNotice(3L, "Y");
         when(noticeRepository.findAll()).thenReturn(List.of(n1, n2, n3));
-        List<AdminNoticeDto> result = adminService.getNoticeList();
-        assertEquals(2, result.size()); // 삭제된 것 제외
+        assertEquals(2, adminService.getNoticeList().size());
     }
 
     @Test
@@ -630,12 +658,10 @@ class AdminServiceTest {
         Admin mockRequester = createAdmin(1L, 1L, "SUPER");
         AdminNoticeDto requestDto = new AdminNoticeDto(null, "제목", "내용", null, "N", null, null);
         NoticeEntity savedNotice = createNotice(1L, "N");
-
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(noticeRepository.save(any(NoticeEntity.class))).thenReturn(savedNotice);
-            AdminNoticeDto result = adminService.createNotice(requestDto);
-            assertNotNull(result);
+            assertNotNull(adminService.createNotice(requestDto));
             verify(noticeRepository, times(1)).save(any(NoticeEntity.class));
         }
     }
@@ -645,7 +671,6 @@ class AdminServiceTest {
     void createNotice_실패_권한없음() {
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
         AdminNoticeDto requestDto = new AdminNoticeDto(null, "제목", "내용", null, "N", null, null);
-
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -664,13 +689,11 @@ class AdminServiceTest {
         Admin mockRequester = createAdmin(1L, 1L, "SUPER");
         NoticeEntity mockNotice = createNotice(1L, "N");
         AdminNoticeDto requestDto = new AdminNoticeDto(null, "수정된 제목", "수정된 내용", null, "Y", null, null);
-
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(noticeRepository.findById(1L)).thenReturn(Optional.of(mockNotice));
             when(noticeRepository.save(any(NoticeEntity.class))).thenReturn(mockNotice);
-            AdminNoticeDto result = adminService.updateNotice(1L, requestDto);
-            assertNotNull(result);
+            assertNotNull(adminService.updateNotice(1L, requestDto));
         }
     }
 
@@ -679,7 +702,6 @@ class AdminServiceTest {
     void updateNotice_실패_없는공지사항() {
         Admin mockRequester = createAdmin(1L, 1L, "SUPER");
         AdminNoticeDto requestDto = new AdminNoticeDto(null, "제목", "내용", null, "N", null, null);
-
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(noticeRepository.findById(999L)).thenReturn(Optional.empty());
@@ -694,7 +716,6 @@ class AdminServiceTest {
     void updateNotice_실패_권한없음() {
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
         AdminNoticeDto requestDto = new AdminNoticeDto(null, "제목", "내용", null, "N", null, null);
-
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -712,7 +733,6 @@ class AdminServiceTest {
     void deleteNotice_성공() {
         Admin mockRequester = createAdmin(1L, 1L, "SUPER");
         NoticeEntity mockNotice = createNotice(1L, "N");
-
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(noticeRepository.findById(1L)).thenReturn(Optional.of(mockNotice));
@@ -727,7 +747,6 @@ class AdminServiceTest {
     void deleteNotice_실패_이미삭제된공지사항() {
         Admin mockRequester = createAdmin(1L, 1L, "SUPER");
         NoticeEntity mockNotice = createNotice(1L, "Y");
-
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(noticeRepository.findById(1L)).thenReturn(Optional.of(mockNotice));
@@ -741,11 +760,145 @@ class AdminServiceTest {
     @DisplayName("공지사항 삭제 — 실패 : 권한 없음 (403)")
     void deleteNotice_실패_권한없음() {
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             ResponseStatusException exception = assertThrows(ResponseStatusException.class,
                     () -> adminService.deleteNotice(1L));
+            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 충전소 목록 조회 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("충전소 목록 조회 — 성공 : SUPER")
+    void getStationList_성공_SUPER() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        StationEntity s1 = createStation("ST001");
+        StationEntity s2 = createStation("ST002");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(stationRepository.findAll()).thenReturn(List.of(s1, s2));
+            List<AdminStationDto> result = adminService.getStationList();
+            assertEquals(2, result.size());
+        }
+    }
+
+    @Test
+    @DisplayName("충전소 목록 조회 — 성공 : CHARGER 파트")
+    void getStationList_성공_CHARGER파트() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+        mockRequester.updatePart("CHARGER");
+        StationEntity s1 = createStation("ST001");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(stationRepository.findAll()).thenReturn(List.of(s1));
+            List<AdminStationDto> result = adminService.getStationList();
+            assertEquals(1, result.size());
+        }
+    }
+
+    @Test
+    @DisplayName("충전소 목록 조회 — 실패 : 권한 없음 (403)")
+    void getStationList_실패_권한없음() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+        mockRequester.updatePart("MEMBER");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                    () -> adminService.getStationList());
+            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 충전기 목록 조회 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("충전기 목록 조회 — 성공 : 전체 조회")
+    void getChargerList_성공_전체() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        ChargerEntity c1 = createCharger("ST001", "C001", "2");
+        ChargerEntity c2 = createCharger("ST001", "C002", "3");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(chargerRepository.findAll()).thenReturn(List.of(c1, c2));
+            List<AdminChargerDto> result = adminService.getChargerList(null);
+            assertEquals(2, result.size());
+        }
+    }
+
+    @Test
+    @DisplayName("충전기 목록 조회 — 성공 : 특정 충전소 조회")
+    void getChargerList_성공_특정충전소() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        ChargerEntity c1 = createCharger("ST001", "C001", "2");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(chargerRepository.findByStatId("ST001")).thenReturn(List.of(c1));
+            List<AdminChargerDto> result = adminService.getChargerList("ST001");
+            assertEquals(1, result.size());
+        }
+    }
+
+    @Test
+    @DisplayName("충전기 목록 조회 — 실패 : 권한 없음 (403)")
+    void getChargerList_실패_권한없음() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+        mockRequester.updatePart("MEMBER");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                    () -> adminService.getChargerList(null));
+            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 충전기 상태 변경 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("충전기 상태 변경 — 성공")
+    void updateChargerStat_성공() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        ChargerEntity mockCharger = createCharger("ST001", "C001", "2");
+        ChargerId chargerId = new ChargerId("ST001", "C001");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(chargerRepository.findById(chargerId)).thenReturn(Optional.of(mockCharger));
+            when(chargerRepository.save(any(ChargerEntity.class))).thenReturn(mockCharger);
+            AdminChargerDto result = adminService.updateChargerStat("ST001", "C001", "4");
+            assertNotNull(result);
+        }
+    }
+
+    @Test
+    @DisplayName("충전기 상태 변경 — 실패 : 존재하지 않는 충전기")
+    void updateChargerStat_실패_없는충전기() {
+        Admin mockRequester = createAdmin(1L, 1L, "SUPER");
+        ChargerId chargerId = new ChargerId("ST999", "C999");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            when(chargerRepository.findById(chargerId)).thenReturn(Optional.empty());
+            RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> adminService.updateChargerStat("ST999", "C999", "4"));
+            assertEquals("충전기를 찾을 수 없습니다", exception.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("충전기 상태 변경 — 실패 : 권한 없음 (403)")
+    void updateChargerStat_실패_권한없음() {
+        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
+        mockRequester.updatePart("MEMBER");
+        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
+            mockRequesterChain(securityUtil, mockRequester);
+            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                    () -> adminService.updateChargerStat("ST001", "C001", "4"));
             assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
         }
     }
