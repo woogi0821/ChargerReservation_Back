@@ -83,36 +83,48 @@ public class StationService {
      */
     @Transactional(readOnly = true)
     public List<StationDto> getStationsWithDistancePaged(Double lat, Double lng, int page) {
-        // 1. 상수 및 현재 환경 설정 (실제로는 날짜 기반 유틸리티 사용 권장)
+        // 1. 환경 설정 (계절 및 연도)
         int year = 2026;
         String season = "봄가을";
-        String type = "급속"; // 목록에서 기본으로 보여줄 타입 (필요시 파라미터로 받음)
+
+        // 2. Repository 호출
+        // [중요] Repository에서 p1.UNIT_PRICE as currentPrice, p2.UNIT_PRICE as slowPrice를 가져와야 함
+        // 기존에 넘기던 'type' 파라미터는 쿼리 내부에서 '급속'/'완속'으로 하드코딩했으므로 제거
+        List<MarkerProjection> list = stationRepository.findStationsWithinRadiusWithPaging(
+                lat, lng, 1.5, year, season, page * 20, 20);
+
+        if (list.isEmpty()) return Collections.emptyList();
+
+        // 💡 성능 최적화 (N+1 문제 해결): 현재 페이지에 해당하는 모든 충전소 ID 추출
+        List<String> statIds = list.stream().map(MarkerProjection::getStatId).collect(Collectors.toList());
+
+        // 해당 충전소들의 모든 충전기 정보를 한 번의 쿼리로 가져옴
+        List<ChargerEntity> allChargers = chargerRepository.findByStatIdIn(statIds);
+
+        // 충전소 ID별로 그룹화 (메모리 내에서 매핑)
+        Map<String, List<ChargerEntity>> chargerMap = allChargers.stream()
+                .collect(Collectors.groupingBy(ChargerEntity::getStatId));
 
         Set<String> fastTypes = Set.of("01", "03", "04", "05", "06", "08");
         Set<String> brokenStats = Set.of("1", "4", "5");
 
-        // 2. Repository 호출 (수정된 파라미터 반영: type, year, season 추가)
-        // [중요] Repository에서 p.unitPrice AS currentPrice를 가져오도록 쿼리가 수정되어 있어야 함
-        List<MarkerProjection> list = stationRepository.findStationsWithinRadiusWithPaging(
-                lat, lng, 1.5, type, year, season, page * 20, 20);
-
         return list.stream()
                 .map(p -> {
-                    // 1. MapStruct 및 기본 정보 세팅
+                    // 1. 기본 정보 매핑
                     StationDto dto = mapStruct.toDto(p);
+                    dto.setStatId(p.getStatId());
                     dto.setStatNm(p.getStatNm());
                     dto.setAddr(p.getAddr());
                     dto.setDistance(p.getDistance());
-                    dto.setBnm(p.getBnm()); // 운영사 정보 확인
-                    dto.setCurrentPrice(p.getCurrentPrice());
+                    dto.setBnm(p.getBnm());
 
-                    // ✨ [신규] 조인된 요금 정보 세팅 (규칙 2)
-                    // MarkerProjection에 Double getCurrentPrice()가 추가되어 있어야 합니다.
-                    dto.setCurrentPrice(p.getCurrentPrice());
+                    // ✨ [핵심 수정] 급속과 완속 요금을 각각 세팅
+                    // MarkerProjection 인터페이스에 getSlowPrice()가 추가되어 있어야 함
+                    dto.setCurrentPrice(p.getCurrentPrice()); // 급속 요금
+                    dto.setSlowPrice(p.getSlowPrice());       // 완속 요금 추가
 
-                    // 2. 충전기 상세 현황 계산
-                    // Tip: 성능 최적화가 필요하다면 이 부분을 In절 쿼리로 한방에 가져오는게 좋음
-                    List<ChargerEntity> chargers = chargerRepository.findByStatId(p.getStatId());
+                    // 2. 충전기 상세 현황 (미리 그룹화된 맵에서 꺼내기 - DB 호출 없음)
+                    List<ChargerEntity> chargers = chargerMap.getOrDefault(p.getStatId(), Collections.emptyList());
 
                     int total = chargers.size();
                     int available = (int) chargers.stream().filter(c -> "2".equals(c.getStat())).count();
@@ -137,75 +149,107 @@ public class StationService {
      * - 테스트 코드에서 호출하는 핵심 메서드입니다.
      */
     @Transactional(readOnly = true)
-    public StationDto getStationDetail(String statId, String type, String currentMonth, double lat, double lng) {
+    public StationDto getStationDetail(String statId, String currentMonth, double lat, double lng) {
         // 1. 연도 설정 (데이터에 2026, 2025가 있으므로 이에 맞춤)
         int currYear = 2026;
         int lastYear = 2025;
 
-        // 💡 2. 계절 판별 (DB 값인 "봄가을"로 리턴되도록 수정됨)
+        // 2. 계절 판별
         String season = determineSeason(Integer.parseInt(currentMonth));
 
+        // 💡 쿼리에서 'type' 파라미터가 제거되었으므로 인자에서 제외
         List<Object[]> results = stationRepository.findStationDetailWithPriceHistory(
-                statId, type, season, currYear, lastYear, lat, lng
+                statId, season, currYear, lastYear, lat, lng
         );
 
-        if (results == null || results.isEmpty()) throw new RuntimeException("정보 없음");
+        if (results == null || results.isEmpty()) throw new RuntimeException("충전소 정보가 없습니다.");
 
-        Object[] row = results.get(0);
+        Object[] firstRow = results.get(0);
         StationDto dto = new StationDto();
 
-        // [1, 2, 9, 10, 11] 기본 정보
-        dto.setStatNm(String.valueOf(row[0]));
-        dto.setAddr(String.valueOf(row[1]));
-        dto.setBnm(String.valueOf(row[2]));
-        dto.setLocation(row[3] != null ? row[3].toString() : "정보없음");
-        dto.setUseTime(String.valueOf(row[4]));
+        // --- [기본 정보 매핑] ---
+        dto.setStatNm(String.valueOf(firstRow[0]));
+        dto.setAddr(String.valueOf(firstRow[1]));
+        dto.setBnm(String.valueOf(firstRow[2]));
+        dto.setLocation(firstRow[3] != null ? firstRow[3].toString() : "정보없음");
+        dto.setUseTime(String.valueOf(firstRow[4]));
+        dto.setLimitYn(String.valueOf(firstRow[5]));
+        dto.setParkingFree(String.valueOf(firstRow[6]));
+        dto.setLimitDetail(firstRow[7] != null ? firstRow[7].toString() : "-");
 
-        // [6, 7, 8] 제약 사항
-        dto.setLimitYn(String.valueOf(row[5]));
-        dto.setParkingFree(String.valueOf(row[6]));
-        dto.setLimitDetail(row[7] != null ? row[7].toString() : "-");
-
-        // [12] 업데이트 날짜
-        if (row[8] != null) {
-            dto.setLastUpdated(((java.sql.Timestamp) row[8]).toLocalDateTime().toLocalDate().toString());
+        if (firstRow[8] != null) {
+            dto.setLastUpdated(((java.sql.Timestamp) firstRow[8]).toLocalDateTime().toLocalDate().toString());
         }
 
-        // [3] 거리 및 [5] 현황
-        dto.setDistance(((Number) row[9]).doubleValue());
-        int total = ((Number) row[10]).intValue();
-        int available = ((Number) row[11]).intValue();
-        int broken = ((Number) row[12]).intValue();
-        // 📊 현황 포맷: 2/4 (고장 2)
-        dto.setOccupancy(available + "/" + total + " (고장 " + broken + ")");
+        dto.setDistance(((Number) firstRow[9]).doubleValue());
 
-        // 💡 [4] 요금 계산 (Number 타입으로 안전하게 캐스팅)
-        Double currentPrice = null;
-        Double lastYearPrice = null;
+        // --- [실시간 현황 정보 매핑] ---
+        int total = ((Number) firstRow[10]).intValue();
+        int available = ((Number) firstRow[11]).intValue();
+        int broken = ((Number) firstRow[12]).intValue();
+        dto.setStatusInfo(available, total, broken); // DTO 내부 로직 활용
+
+        // 💡 상세 현황(급속/완속) 텍스트를 위해 충전기 리스트 기반 세팅 추가
+        // 이 부분은 기존에 구현하신 processTypeDetail 로직이 있다면 호출하거나,
+        // 아래와 같이 간단히 세팅할 수 있습니다.
+        List<ChargerEntity> chargers = chargerRepository.findByStatId(statId);
+        Set<String> brokenStats = Set.of("4", "5");
+
+        // 급속/완속 분류 및 상태 텍스트 생성
+        updateTypeStatus(dto, chargers, brokenStats);
+
+        // --- [요금 정보 분류 매핑] ---
+        Double fastCurr = null;
+        Double fastLast = null;
+        Double slowCurr = null;
+        Double slowLast = null;
 
         for (Object[] r : results) {
-            if (r[13] != null && r[14] != null) {
+            if (r[13] != null && r[14] != null && r[15] != null) {
                 double price = ((Number) r[13]).doubleValue();
                 int year = ((Number) r[14]).intValue();
+                String speedType = String.valueOf(r[15]); // 💡 Repository에 추가한 SPEED_TYPE
 
-                if (year == currYear) currentPrice = price;
-                else if (year == lastYear) lastYearPrice = price;
+                if ("급속".equals(speedType)) {
+                    if (year == currYear) fastCurr = price;
+                    else if (year == lastYear) fastLast = price;
+                } else if ("완속".equals(speedType)) {
+                    if (year == currYear) slowCurr = price;
+                    else if (year == lastYear) slowLast = price;
+                }
             }
         }
 
-        dto.setCurrentPrice(currentPrice);
-        dto.setLastYearPrice(lastYearPrice);
-        dto.setPriceDiff(currentPrice != null && lastYearPrice != null ? currentPrice - lastYearPrice : null);
-        dto.setSeason(season); // "봄가을"
+        // 💡 새로 만든 DTO의 메서드로 모든 요금 정보를 한 번에 세팅
+        dto.setPriceComparison(fastCurr, fastLast, slowCurr, slowLast, currentMonth);
 
         return dto;
     }
 
-    // 💡 슬래시 제거 버전
+    /**
+     * 급속/완속 상태 텍스트 세팅 헬퍼 메서드
+     */
+    private void updateTypeStatus(StationDto dto, List<ChargerEntity> chargers, Set<String> brokenStats) {
+        Map<String, List<ChargerEntity>> grouped = chargers.stream()
+                .collect(Collectors.groupingBy(c -> isFast(c.getChargerType()) ? "급속" : "완속"));
+
+        grouped.forEach((type, list) -> {
+            int total = list.size();
+            int available = (int) list.stream().filter(c -> "2".equals(c.getStat())).count();
+            int broken = (int) list.stream().filter(c -> brokenStats.contains(c.getStat())).count();
+            dto.setTypeDetailStatus(type, available, total, broken);
+        });
+    }
+
     private String determineSeason(int month) {
-        if (month >= 3 && month <= 5 || month >= 9 && month <= 11) return "봄가을";
+        if ((month >= 3 && month <= 5) || (month >= 9 && month <= 11)) return "봄가을";
         if (month >= 6 && month <= 8) return "여름";
         return "겨울";
+    }
+
+    private boolean isFast(String type) {
+        // 기존에 사용하시던 급속 판별 로직 (01, 03, 05 등)
+        return !"02".equals(type);
     }
     /**
      * [기능] 충전소 통합 검색

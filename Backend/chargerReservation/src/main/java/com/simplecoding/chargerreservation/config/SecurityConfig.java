@@ -48,10 +48,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/email/**").permitAll()
                         .requestMatchers("/member/login", "/member/join", "/member/refresh").permitAll()
                         .requestMatchers("/api/stations/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                        .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
-                        .requestMatchers("/download/**", "/images/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
-                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
+                        // MEMBER_GRADE 컬럼이 VARCHAR2(2) 이고 실제 값이 'Y'(관리자) / 'N'(일반회원) 이므로
+                        // JWT 토큰에 담긴 authority 도 'Y' 로 발급됨 → "ROLE_ADMIN" 이 아닌 "Y" 로 매칭
+                        .requestMatchers("/api/admin/**").hasAuthority("Y")
+                        .requestMatchers("/admin/**").hasAuthority("Y")
+                        .requestMatchers("/download/**", "/images/**", "/css/**","/js/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**","/v3/api-docs.yaml").permitAll()
                         .requestMatchers("/").permitAll()
                         .anyRequest().authenticated() // 그 외 모든 요청은 토큰이 있어야 함
                 )
@@ -89,6 +91,4 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-
-
 }
