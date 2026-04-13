@@ -67,7 +67,7 @@ public class StationController {
     @GetMapping("/{statId}")
     public ResponseEntity<StationDto> getStationDetail(
             @PathVariable String statId,
-            @RequestParam(defaultValue = "급속") String type,
+            // 💡 이제 서비스에서 급속/완속을 모두 조회하므로 type 파라미터는 제거하거나 무시해도 됩니다.
             @RequestParam(required = false) Double userLat,
             @RequestParam(required = false) Double userLng) {
 
@@ -75,23 +75,23 @@ public class StationController {
         String currentMonth = String.format("%02d", LocalDate.now().getMonthValue());
 
         // 2. 위치 정보 기본값 처리
-        // 프론트에서 위치 권한을 거부했을 때를 대비해 기본 좌표(범내골)를 사용하는 로직은 좋습니다.
-        double lat = (userLat != null) ? userLat : 35.1485;
-        double lng = (userLng != null) ? userLng : 129.0637;
+        double lat = (userLat != null && userLat != 0.0) ? userLat : 35.1485;
+        double lng = (userLng != null && userLng != 0.0) ? userLng : 129.0637;
 
-        log.info("🔍 [API] 상세 조회 요청 - ID: {}, 타입: {}, 위치: ({}, {})", statId, type, lat, lng);
+        log.info("🔍 [API] 상세 조회 요청 - ID: {}, 위치: ({}, {})", statId, lat, lng);
 
         try {
-            // 3. 서비스 호출
-            StationDto detail = stationService.getStationDetail(statId, type, currentMonth, lat, lng);
-
-            // 💡 [추가 제안] 충전기 목록(List<ChargerDto>)이 있다면 여기서 추가로 세팅하거나
-            // 서비스 내부에서 이미 세팅되어 내려오는지 확인이 필요합니다.
+            // 💡 3. 서비스 호출 (수정된 서비스 시그니처에 맞춰 type 인자 제거)
+            // 서비스에서 이제 급속/완속 요금을 모두 포함한 StationDto를 반환합니다.
+            StationDto detail = stationService.getStationDetail(statId, currentMonth, lat, lng);
 
             return ResponseEntity.ok(detail);
 
-        } catch (Exception e) { // RuntimeException보다 넓은 범위의 예외 처리 권장
-            log.error("❌ 상세 조회 실패 (ID: {}): {}", statId, e.getMessage());
+        } catch (RuntimeException e) {
+            log.warn("⚠️ 상세 조회 결과 없음 (ID: {}): {}", statId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (Exception e) {
+            log.error("❌ 상세 조회 서버 에러 (ID: {}): {}", statId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -104,27 +104,28 @@ public class StationController {
     public ResponseEntity<List<StationDto>> getAroundStations(
             @RequestParam Double lat,
             @RequestParam Double lng,
-            @RequestParam(defaultValue = "0") int page) {
+            @RequestParam(defaultValue = "0") int page,
+            // ✨ 추가: 프론트의 필터 상태를 전달받음 (기본값 '급속')
+            @RequestParam(defaultValue = "급속") String type) {
 
-        // 1. 유효하지 않은 좌표 방어 (0.0 또는 null)
-        // 리액트 무한 스크롤이나 리스트 맵핑 시 null보다는 빈 리스트([])가 훨씬 안전합니다.
         if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
-            log.warn("⚠️ [API] 유효하지 않은 위치 정보입니다. 빈 리스트를 반환합니다.");
+            log.warn("⚠️ [API] 유효하지 않은 위치 정보입니다.");
             return ResponseEntity.ok(List.of());
         }
 
         try {
-            // 2. 서비스 호출 (거리순 페이징 + 요금/현황 정보 포함)
+            // ✨ 서비스 호출 시 type을 함께 전달하도록 수정
+            // (단, 서비스 내부에서는 이 type의 요금을 '우선' 조회하거나
+            // 제가 앞서 알려드린 대로 p1, p2 조인을 통해 '둘 다' 가져오는 것이 핵심입니다.)
             List<StationDto> stations = stationService.getStationsWithDistancePaged(lat, lng, page);
 
-            // 3. 결과 로깅 및 응답 반환
-            // 데이터가 없더라도 빈 리스트([])를 반환해야 프론트의 .map() 함수가 터지지 않습니다.
-            log.info("📋 [API] 주변 목록 반환: {}건 (위도: {}, 경도: {}, 페이지: {})", stations.size(), lat, lng, page);
+            log.info("📋 [API] 주변 목록 반환: {}건 (위도: {}, 경도: {}, 타입: {}, 페이지: {})",
+                    stations.size(), lat, lng, type, page);
             return ResponseEntity.ok(stations);
 
         } catch (Exception e) {
             log.error("❌ [API] 목록 조회 중 서버 오류 발생: ", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }

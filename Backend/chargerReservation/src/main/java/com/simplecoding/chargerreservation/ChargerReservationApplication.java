@@ -7,6 +7,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 
 @EnableJpaAuditing
+@EnableScheduling
 @SpringBootApplication
 public class ChargerReservationApplication {
 
