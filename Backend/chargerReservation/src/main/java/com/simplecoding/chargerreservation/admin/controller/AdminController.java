@@ -3,6 +3,7 @@ package com.simplecoding.chargerreservation.admin.controller;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminPenaltyDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminReservationDto;
 import com.simplecoding.chargerreservation.admin.service.AdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -58,14 +59,14 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    // ── 회원 전체 목록 조회 (SUPER 또는 MEMBER 파트만 가능) ──────────────────────
+    // ── 회원 전체 목록 조회 (SUPER / ALL / MEMBER 파트만 가능) ───────────────────
     // GET /api/admin/members
     @GetMapping("/members")
     public ResponseEntity<List<AdminMemberDto>> getMemberList() {
         return ResponseEntity.ok(adminService.getMemberList());
     }
 
-    // ── 회원 상태 변경 (SUPER 또는 MEMBER 파트만 가능) ──────────────────────────
+    // ── 회원 상태 변경 (SUPER / ALL / MEMBER 파트만 가능) ────────────────────────
     // PATCH /api/admin/members/{memberId}?newStatus=SUSPENDED
     @PatchMapping("/members/{memberId}")
     public ResponseEntity<AdminMemberDto> updateMemberStatus(
@@ -76,18 +77,33 @@ public class AdminController {
         );
     }
 
-    // ── 패널티 전체 목록 조회 (SUPER 또는 INQUIRY 파트만 가능) ──────────────────
+    // ── 패널티 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ────────────────
     // GET /api/admin/penalties
     @GetMapping("/penalties")
     public ResponseEntity<List<AdminPenaltyDto>> getPenaltyList() {
         return ResponseEntity.ok(adminService.getPenaltyList());
     }
 
-    // ── 패널티 취소 (SUPER 또는 INQUIRY 파트만 가능) ─────────────────────────────
+    // ── 패널티 취소 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────────────
     // PATCH /api/admin/penalties/{penaltyId}
     @PatchMapping("/penalties/{penaltyId}")
     public ResponseEntity<AdminPenaltyDto> cancelPenalty(
             @PathVariable Long penaltyId) {
         return ResponseEntity.ok(adminService.cancelPenalty(penaltyId));
+    }
+
+    // ── 예약 전체 목록 조회 (SUPER / ALL / RESERVATION 파트만 가능) ──────────────
+    // GET /api/admin/reservations
+    @GetMapping("/reservations")
+    public ResponseEntity<List<AdminReservationDto>> getReservationList() {
+        return ResponseEntity.ok(adminService.getReservationList());
+    }
+
+    // ── 예약 강제 취소 (SUPER / ALL / RESERVATION 파트만 가능) ───────────────────
+    // PATCH /api/admin/reservations/{reservationId}
+    @PatchMapping("/reservations/{reservationId}")
+    public ResponseEntity<AdminReservationDto> cancelReservation(
+            @PathVariable Long reservationId) {
+        return ResponseEntity.ok(adminService.cancelReservation(reservationId));
     }
 }

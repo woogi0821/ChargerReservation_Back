@@ -3,6 +3,7 @@ package com.simplecoding.chargerreservation.admin.service;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminPenaltyDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminReservationDto;
 import com.simplecoding.chargerreservation.admin.entity.Admin;
 import com.simplecoding.chargerreservation.admin.repository.AdminRepository;
 import com.simplecoding.chargerreservation.common.SecurityUtil;
@@ -11,6 +12,8 @@ import com.simplecoding.chargerreservation.member.repository.MemberRepository;
 import com.simplecoding.chargerreservation.penalty.entity.PenaltyHistory;
 import com.simplecoding.chargerreservation.penalty.entity.PenaltyStatus;
 import com.simplecoding.chargerreservation.penalty.repository.PenaltyRepository;
+import com.simplecoding.chargerreservation.reservation.entity.Reservation;
+import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,6 +32,7 @@ public class AdminService {
     private final AdminRepository adminRepository;
     private final MemberRepository memberRepository;
     private final PenaltyRepository penaltyRepository;
+    private final ReservationRepository reservationRepository;
 
     // ── 요청자 관리자 조회 헬퍼 ─────────────────────────────────────────────────
     private Admin getRequesterAdmin() {
@@ -63,7 +67,6 @@ public class AdminService {
         Admin admin = new Admin(dto.getMemberId(), dto.getAdminRole());
         adminRepository.save(admin);
 
-        // 관리자 등록 시 MEMBER_GRADE 'Y' 로 변경
         member.setMemberGrade("Y");
         memberRepository.save(member);
 
@@ -112,7 +115,6 @@ public class AdminService {
 
         adminRepository.delete(target);
 
-        // 관리자 해제 시 MEMBER_GRADE 'N' 으로 복구
         Member member = memberRepository.findById(target.getMemberId())
                 .orElseThrow(() -> new RuntimeException("회원을 찾을 수 없습니다"));
         member.setMemberGrade("N");
@@ -126,7 +128,6 @@ public class AdminService {
         Admin requester = getRequesterAdmin();
 
         boolean isSuperRole  = requester.getAdminRole().equals("SUPER");
-        // ALL 파트는 모든 영역 접근 가능 → MEMBER 파트와 동일하게 허용
         boolean isMemberPart = requester.getAdminPart().equals("MEMBER")
                 || requester.getAdminPart().equals("ALL");
 
@@ -146,7 +147,6 @@ public class AdminService {
         Admin requester = getRequesterAdmin();
 
         boolean isSuperRole  = requester.getAdminRole().equals("SUPER");
-        // ALL 파트는 모든 영역 접근 가능 → MEMBER 파트와 동일하게 허용
         boolean isMemberPart = requester.getAdminPart().equals("MEMBER")
                 || requester.getAdminPart().equals("ALL");
 
@@ -177,7 +177,6 @@ public class AdminService {
         Admin requester = getRequesterAdmin();
 
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        // ALL 파트는 모든 영역 접근 가능 → INQUIRY 파트와 동일하게 허용
         boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
                 || requester.getAdminPart().equals("ALL");
 
@@ -197,7 +196,6 @@ public class AdminService {
         Admin requester = getRequesterAdmin();
 
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        // ALL 파트는 모든 영역 접근 가능 → INQUIRY 파트와 동일하게 허용
         boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
                 || requester.getAdminPart().equals("ALL");
 
@@ -215,5 +213,54 @@ public class AdminService {
         penalty.setStatus(PenaltyStatus.CANCELED);
 
         return AdminPenaltyDto.from(penaltyRepository.save(penalty));
+    }
+
+    // ── 예약 전체 목록 조회 (SUPER / ALL / RESERVATION 파트만 가능) ──────────────
+    @Transactional(readOnly = true)
+    public List<AdminReservationDto> getReservationList() {
+
+        Admin requester = getRequesterAdmin();
+
+        boolean isSuperRole       = requester.getAdminRole().equals("SUPER");
+        boolean isReservationPart = requester.getAdminPart().equals("RESERVATION")
+                || requester.getAdminPart().equals("ALL");
+
+        if (!isSuperRole && !isReservationPart) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "예약 조회 권한이 없습니다");
+        }
+
+        return reservationRepository.findAll()
+                .stream()
+                .map(AdminReservationDto::from)
+                .collect(Collectors.toList());
+    }
+
+    // ── 예약 강제 취소 (SUPER / ALL / RESERVATION 파트만 가능) ───────────────────
+    public AdminReservationDto cancelReservation(Long reservationId) {
+
+        Admin requester = getRequesterAdmin();
+
+        boolean isSuperRole       = requester.getAdminRole().equals("SUPER");
+        boolean isReservationPart = requester.getAdminPart().equals("RESERVATION")
+                || requester.getAdminPart().equals("ALL");
+
+        if (!isSuperRole && !isReservationPart) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "예약 취소 권한이 없습니다");
+        }
+
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new RuntimeException("예약을 찾을 수 없습니다"));
+
+        // 이미 취소 또는 완료된 예약 체크
+        if (reservation.getStatus().equals("CANCELED")) {
+            throw new RuntimeException("이미 취소된 예약입니다");
+        }
+        if (reservation.getStatus().equals("COMPLETED")) {
+            throw new RuntimeException("이미 완료된 예약입니다");
+        }
+
+        reservation.changeStatus("CANCELED");
+
+        return AdminReservationDto.from(reservationRepository.save(reservation));
     }
 }
