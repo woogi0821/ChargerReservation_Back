@@ -1,56 +1,79 @@
-//package com.simplecoding.chargerreservation.notice.controller;
-//
-//import com.simplecoding.chargerreservation.notice.dto.NoticeRequestDto;
-//import com.simplecoding.chargerreservation.notice.dto.NoticeResponseDto;
-//import com.simplecoding.chargerreservation.notice.service.NoticeService;
-//import lombok.RequiredArgsConstructor;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.web.bind.annotation.*;
-//
-//import java.util.List;
-//
-//@RestController
-//@RequestMapping("/api/admin/notices")
-//@RequiredArgsConstructor
-//public class NoticeController {
-//
-//    private final NoticeService noticeService;
-//
-//    // 목록 조회
-//    @GetMapping
-//    public ResponseEntity<List<NoticeResponseDto>> getList() {
-//        return ResponseEntity.ok(noticeService.getNoticeList());
-//    }
-//
-//    // 단건 조회
-//    @GetMapping("/{noticeId}")
-//    public ResponseEntity<NoticeResponseDto> getOne(@PathVariable Long noticeId) {
-//        return ResponseEntity.ok(noticeService.getNotice(noticeId));
-//    }
-//
-//    // 작성
-//    // ⚠️ author는 추후 Spring Security 세션에서 꺼내는 걸로 교체 필요
-//    @PostMapping
-//    public ResponseEntity<NoticeResponseDto> create(
-//            @RequestBody NoticeRequestDto dto,
-//            @RequestParam(defaultValue = "홍길동") String author
-//    ) {
-//        return ResponseEntity.ok(noticeService.createNotice(dto, author));
-//    }
-//
-//    // 수정
-//    @PutMapping("/{noticeId}")
-//    public ResponseEntity<NoticeResponseDto> update(
-//            @PathVariable Long noticeId,
-//            @RequestBody NoticeRequestDto dto
-//    ) {
-//        return ResponseEntity.ok(noticeService.updateNotice(noticeId, dto));
-//    }
-//
-//    // 삭제
-//    @DeleteMapping("/{noticeId}")
-//    public ResponseEntity<Void> delete(@PathVariable Long noticeId) {
-//        noticeService.deleteNotice(noticeId);
-//        return ResponseEntity.noContent().build();
-//    }
-//}
+package com.simplecoding.chargerreservation.notice.controller;
+
+import com.simplecoding.chargerreservation.common.ApiResponse;
+import com.simplecoding.chargerreservation.notice.dto.NoticeRequestDto;
+import com.simplecoding.chargerreservation.notice.dto.NoticeResponseDto;
+import com.simplecoding.chargerreservation.notice.service.NoticeService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/notices")
+@RequiredArgsConstructor
+public class NoticeController {
+
+    private final NoticeService noticeService;
+
+    /**
+     * [고객용] 공지사항 목록 조회 (N만 반환)
+     * GET /api/notices
+     */
+    @GetMapping
+    public ApiResponse<List<NoticeResponseDto>> getCustomerNoticeList() {
+        List<NoticeResponseDto> list = noticeService.getCustomerNoticeList();
+        return new ApiResponse<>(true, "고객용 공지사항 조회 성공", list, list.size(), 1);
+    }
+
+    /**
+     * [관리자용] 모든 공지사항 목록 조회 (N + Y 전체)
+     * GET /api/notices/admin
+     */
+    @GetMapping("/admin")
+    public ApiResponse<List<NoticeResponseDto>> getAdminNoticeList() {
+        List<NoticeResponseDto> list = noticeService.getAdminNoticeList();
+        return new ApiResponse<>(true, "관리자용 전체 공지사항 조회 성공", list, list.size(), 1);
+    }
+
+    /**
+     * [관리자] 공지사항 등록
+     */
+    @PostMapping("/admin")
+    public ApiResponse<NoticeResponseDto> registerNotice(@RequestBody NoticeRequestDto requestDto) {
+        String adminId = "admin_user"; // 실제 환경에서는 시큐리티 세션 등에서 추출
+        NoticeResponseDto result = noticeService.registerNotice(requestDto, adminId);
+        return new ApiResponse<>(true, "등록 성공", result, 0, 1);
+    }
+
+    /**
+     * [관리자] 공지사항 수정
+     */
+    @PutMapping("/admin/{noticeId}")
+    public ApiResponse<NoticeResponseDto> updateNotice(
+            @PathVariable Long noticeId,
+            @RequestBody NoticeRequestDto requestDto) {
+        NoticeResponseDto result = noticeService.updateNotice(noticeId, requestDto);
+        return new ApiResponse<>(true, "공지사항이 수정되었습니다.", result, 0, 0);
+    }
+
+    /**
+     * [관리자] 공지사항 소프트 삭제 (N -> Y)
+     * DELETE /api/notices/admin/{noticeId}
+     */
+    @DeleteMapping("/admin/{noticeId}")
+    public ApiResponse<Void> deleteNotice(@PathVariable Long noticeId) {
+        noticeService.deleteNotice(noticeId);
+        return new ApiResponse<>(true, noticeId + "번 공지사항이 삭제(비활성화) 되었습니다.", null, 0, 0);
+    }
+
+    /**
+     * [관리자] 공지사항 복구 (Y -> N)
+     * PATCH /api/notices/admin/restore/{noticeId}
+     */
+    @PatchMapping("/admin/restore/{noticeId}")
+    public ApiResponse<Void> restoreNotice(@PathVariable Long noticeId) {
+        noticeService.restoreNotice(noticeId);
+        return new ApiResponse<>(true, noticeId + "번 공지사항이 복구되었습니다.", null, 0, 0);
+    }
+}

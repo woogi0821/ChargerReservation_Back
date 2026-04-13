@@ -35,11 +35,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // REST API이므로 기본 설정 해제(비활성화)
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .httpBasic(hp -> hp.disable())
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // REST API이므로 기본 설정 해제(비활성화)
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .httpBasic(hp -> hp.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
             // URL별 권한 설정(통행증 검사 규칙)
             // 재발급 경로 허용: "/member/refresh"를 추가해줘야 리액트가 AT 만료 시 RT를 들고 조용히 접근할 수 있음 -> 추가 예정
@@ -72,8 +72,8 @@ public class SecurityConfig {
                 })
             )
 
-            // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 끼워 넣기
-            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+                // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 끼워 넣기
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -92,6 +92,4 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-
-
 }

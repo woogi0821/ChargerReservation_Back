@@ -18,4 +18,5 @@ public interface MarkerProjection {
     String getLimitDetail();    // 제한 상세사유
     Double getDistance();       // [핵심] DB에서 계산된 거리
     Double getCurrentPrice();
+    Double getSlowPrice();    // ✨ 완속 추가
 }
