@@ -2,6 +2,7 @@ package com.simplecoding.chargerreservation.admin.controller;
 
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminNoticeDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminPenaltyDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminReservationDto;
 import com.simplecoding.chargerreservation.admin.service.AdminService;
@@ -45,16 +46,13 @@ public class AdminController {
     public ResponseEntity<AdminDto> updateAdminRole(
             @PathVariable Long targetId,
             @RequestParam String newRole) {
-        return ResponseEntity.ok(
-                adminService.updateAdminRole(targetId, newRole)
-        );
+        return ResponseEntity.ok(adminService.updateAdminRole(targetId, newRole));
     }
 
     // ── 관리자 해제 (SUPER 만 가능) ──────────────────────────────────────────────
     // DELETE /api/admin/{targetId}
     @DeleteMapping("/{targetId}")
-    public ResponseEntity<Void> deleteAdmin(
-            @PathVariable Long targetId) {
+    public ResponseEntity<Void> deleteAdmin(@PathVariable Long targetId) {
         adminService.deleteAdmin(targetId);
         return ResponseEntity.noContent().build();
     }
@@ -72,9 +70,7 @@ public class AdminController {
     public ResponseEntity<AdminMemberDto> updateMemberStatus(
             @PathVariable Long memberId,
             @RequestParam String newStatus) {
-        return ResponseEntity.ok(
-                adminService.updateMemberStatus(memberId, newStatus)
-        );
+        return ResponseEntity.ok(adminService.updateMemberStatus(memberId, newStatus));
     }
 
     // ── 패널티 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ────────────────
@@ -87,8 +83,7 @@ public class AdminController {
     // ── 패널티 취소 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────────────
     // PATCH /api/admin/penalties/{penaltyId}
     @PatchMapping("/penalties/{penaltyId}")
-    public ResponseEntity<AdminPenaltyDto> cancelPenalty(
-            @PathVariable Long penaltyId) {
+    public ResponseEntity<AdminPenaltyDto> cancelPenalty(@PathVariable Long penaltyId) {
         return ResponseEntity.ok(adminService.cancelPenalty(penaltyId));
     }
 
@@ -105,5 +100,36 @@ public class AdminController {
     public ResponseEntity<AdminReservationDto> cancelReservation(
             @PathVariable Long reservationId) {
         return ResponseEntity.ok(adminService.cancelReservation(reservationId));
+    }
+
+    // ── 공지사항 목록 조회 ────────────────────────────────────────────────────────
+    // GET /api/admin/notices
+    @GetMapping("/notices")
+    public ResponseEntity<List<AdminNoticeDto>> getNoticeList() {
+        return ResponseEntity.ok(adminService.getNoticeList());
+    }
+
+    // ── 공지사항 등록 (SUPER 만 가능) ────────────────────────────────────────────
+    // POST /api/admin/notices
+    @PostMapping("/notices")
+    public ResponseEntity<AdminNoticeDto> createNotice(@RequestBody AdminNoticeDto dto) {
+        return ResponseEntity.ok(adminService.createNotice(dto));
+    }
+
+    // ── 공지사항 수정 (SUPER 만 가능) ────────────────────────────────────────────
+    // PATCH /api/admin/notices/{noticeId}
+    @PatchMapping("/notices/{noticeId}")
+    public ResponseEntity<AdminNoticeDto> updateNotice(
+            @PathVariable Long noticeId,
+            @RequestBody AdminNoticeDto dto) {
+        return ResponseEntity.ok(adminService.updateNotice(noticeId, dto));
+    }
+
+    // ── 공지사항 삭제 (SUPER 만 가능) ────────────────────────────────────────────
+    // DELETE /api/admin/notices/{noticeId}
+    @DeleteMapping("/notices/{noticeId}")
+    public ResponseEntity<Void> deleteNotice(@PathVariable Long noticeId) {
+        adminService.deleteNotice(noticeId);
+        return ResponseEntity.noContent().build();
     }
 }
