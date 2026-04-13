@@ -46,7 +46,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/email/**").permitAll()
-                .requestMatchers("/member/login", "/member/join", "/member/refresh").permitAll()
+                .requestMatchers("/api/member/login", "/api/member/join", "/api/member/refresh").permitAll()
+                .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
                 .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
                 .requestMatchers("/download/**", "/images/**", "/css/**","/js/**", "/favicon.ico").permitAll()
@@ -56,8 +57,11 @@ public class SecurityConfig {
             )
             // 소셜 로그인 설정
             .oauth2Login(oauth2 -> oauth2
-                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService)) // 소셜 서비스 연결
-                .successHandler(oAuth2SuccessHandler) // 인증 성공 시 실행될 로직
+                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))            // 소셜 서비스 연결
+                .successHandler(oAuth2SuccessHandler)                                                                       // 인증 성공 시 로직
+                .failureHandler((request, response, exception) -> {  // 로그인 실패 시 로직
+                    response.sendRedirect("http://localhost:5173/");
+                })
             )
             // 인증/인가 예외 처리 (가짜 토큰, 토큰 없음 등)
             .exceptionHandling(exception -> exception
