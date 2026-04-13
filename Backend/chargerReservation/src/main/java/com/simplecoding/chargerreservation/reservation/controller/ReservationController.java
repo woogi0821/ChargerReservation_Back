@@ -38,7 +38,7 @@ public class ReservationController {
     @PatchMapping("/{id}/cancel")
     public ResponseEntity<Void> cancelReservation(
             @PathVariable Long id,
-            @RequestHeader("X-memberId") Long memberId) {
+            @RequestHeader("X-MemberId") Long memberId) {
                 log.info("예약 취소 요청 - 예약 ID : {},회원 ID : {}",id, memberId);
                 reservationService.cancelReservation(id,memberId);
                 return ResponseEntity.ok().build();
