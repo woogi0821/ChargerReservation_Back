@@ -37,8 +37,8 @@ public class JwtTokenProvider {
         this.key = Keys.hmacShaKeyFor(keyBytes);
 
         // 단위를 밀리초(ms)로 변환해서 저장
-        this.accessTokenValidityInMilliseconds = accessTokenValidity * 1000;
-        this.refreshTokenValidityInMilliseconds = refreshTokenValidity * 1000;
+        this.accessTokenValidityInMilliseconds = accessTokenValidity;
+        this.refreshTokenValidityInMilliseconds = refreshTokenValidity;
     }
 
     // Access Token 생성

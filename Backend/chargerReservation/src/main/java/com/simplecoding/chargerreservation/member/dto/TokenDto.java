@@ -14,5 +14,5 @@ public class TokenDto {
     private String accessToken;
     private String refreshToken;
     private Long memberId;
-    private String name;
+    private String memberGrade;
 }
