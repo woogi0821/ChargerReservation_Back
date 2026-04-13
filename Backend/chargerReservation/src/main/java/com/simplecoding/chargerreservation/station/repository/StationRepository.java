@@ -52,17 +52,20 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             "    SELECT s.STAT_ID as statId, s.STAT_NM as statNm, s.ADDR as addr, " +
             "           s.BNM as bnm, s.LAT as lat, s.LNG as lng, s.USE_TIME as useTime, " +
             "           s.PARKING_FREE as parkingFree, s.LIMIT_YN as limitYn, s.LIMIT_DETAIL as limitDetail, " +
-            "           p.UNIT_PRICE as currentPrice, " + // ✨ 요금 단가 추가
+            "           p1.UNIT_PRICE as currentPrice, " + // ✨ 급속 요금
+            "           p2.UNIT_PRICE as slowPrice, " +    // ✨ 완속 요금 추가
             "           ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
             "               sin(:lat * 3.141592653589793 / 180) * sin(s.LAT * 3.141592653589793 / 180) + " +
             "               cos(:lat * 3.141592653589793 / 180) * cos(s.LAT * 3.141592653589793 / 180) * " +
             "               cos((s.LNG - :lng) * 3.141592653589793 / 180) " +
             "           ))), 2) AS distance " +
             "    FROM STATION s " +
-            "    LEFT JOIN CHARGER_PRICE p ON s.BNM = p.BNM " + // ✨ 규칙 1: 운영사 일치 조인
-            "    AND p.SPEED_TYPE = :type " +
-            "    AND p.APPLY_YEAR = :year " +
-            "    AND p.SEASON = :season " +
+            "    LEFT JOIN CHARGER_PRICE p1 ON s.BNM = p1.BNM " +
+            "        AND p1.SPEED_TYPE = '급속' " + // 급속 고정
+            "        AND p1.APPLY_YEAR = :year AND p1.SEASON = :season " +
+            "    LEFT JOIN CHARGER_PRICE p2 ON s.BNM = p2.BNM " +
+            "        AND p2.SPEED_TYPE = '완속' " + // 완속 고정
+            "        AND p2.APPLY_YEAR = :year AND p2.SEASON = :season " +
             "    WHERE s.LAT IS NOT NULL AND s.LNG IS NOT NULL " +
             ") t " +
             "WHERE t.distance <= :radius " +
@@ -72,12 +75,10 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             @Param("lat") Double lat,
             @Param("lng") Double lng,
             @Param("radius") Double radius,
-            @Param("type") String type,   // ✨ 추가
-            @Param("year") Integer year,  // ✨ 추가
-            @Param("season") String season, // ✨ 추가
+            @Param("year") Integer year,
+            @Param("season") String season,
             @Param("offset") int offset,
             @Param("size") int size);
-
     /**
      * 3. 통합 키워드 검색
      */
@@ -103,18 +104,17 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             "(SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID) AS total, " + // 10
             "(SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.STAT = '2') AS available, " + // 11
             "(SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.STAT IN ('4', '5')) AS broken, " + // 12
-            "p.UNIT_PRICE, p.APPLY_YEAR " + // 13, 14
+            "p.UNIT_PRICE, p.APPLY_YEAR, p.SPEED_TYPE " + // 💡 13, 14, 15(타입 추가)
             "FROM STATION s " +
-            "LEFT JOIN CHARGER_PRICE p ON TRIM(s.BNM) = TRIM(p.BNM) " + // 💡 TRIM 추가
-            "AND p.SPEED_TYPE = :type " +
+            "LEFT JOIN CHARGER_PRICE p ON TRIM(s.BNM) = TRIM(p.BNM) " +
+            "AND p.SPEED_TYPE IN ('급속', '완속') " + // 💡 특정 타입이 아닌 둘 다 조회
             "AND p.SEASON = :season " +
             "AND (p.APPLY_YEAR = :currYear OR p.APPLY_YEAR = :lastYear) " +
             "WHERE s.STAT_ID = :statId " +
             "ORDER BY p.APPLY_YEAR DESC", nativeQuery = true)
     List<Object[]> findStationDetailWithPriceHistory(
             @Param("statId") String statId,
-            @Param("type") String type,
-            @Param("season") String season,
+            @Param("season") String season, // 💡 :type 파라미터는 이제 필요 없음
             @Param("currYear") Integer currYear,
             @Param("lastYear") Integer lastYear,
             @Param("lat") double lat,

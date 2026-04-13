@@ -13,8 +13,10 @@ import java.util.List;
 @Repository
 public interface ChargerRepository extends JpaRepository<ChargerEntity, ChargerId> {
 
-    // 1. 특정 충전소의 모든 충전기 목록 조회
-    List<ChargerEntity> findByStatId(String statId);
+    // 기존 것(상세보기용)도 두고, 목록용을 하나 더 추가하는 겁니다.
+    List<ChargerEntity> findByStatId(String statId); // 단일 조회용 (상세페이지)
+
+    List<ChargerEntity> findByStatIdIn(List<String> statIds); // 대량 조회용 (목록페이지 - 성능 최적화)
 
     /**
      * 2. 상태 업데이트 (Bulk Update)
