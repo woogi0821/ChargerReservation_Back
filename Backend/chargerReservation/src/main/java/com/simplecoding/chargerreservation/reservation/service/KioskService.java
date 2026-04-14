@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 @Log4j2
 @Service
@@ -60,5 +62,24 @@ public class KioskService {
         reservation.endCharging("COMPLETED", LocalDateTime.now());
         chargerSocketController.pushStatus(req.getChargerId(), "COMPLETED");
         log.info("충전 조기 종료 - 충전기 : {}", req.getChargerId());
+    }
+
+    public KioskDto.StatusResponse getChargerStatus(String chargerId){
+        Optional<Reservation> opt = reservationRepository
+                .findTopByChargerIdAndStatusIn(chargerId, List.of("RESERVED", "CHARGING"));
+
+        if (opt.isEmpty()) {
+            return KioskDto.StatusResponse.builder()
+                    .chargerId(chargerId)
+                    .status("AVAILABLE")
+                    .build();
+        }
+        Reservation r = opt.get();
+        return KioskDto.StatusResponse.builder()
+                .chargerId(chargerId)
+                .status(r.getStatus())
+                .startTime(r.getStartTime())
+                .endTime(r.getEndTime())
+                .build();
     }
 }

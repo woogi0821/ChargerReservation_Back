@@ -1,7 +1,6 @@
 package com.simplecoding.chargerreservation.penalty.controller;
 
 import com.simplecoding.chargerreservation.penalty.service.PenaltyService;
-import com.simplecoding.chargerreservation.penalty.service.SmsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

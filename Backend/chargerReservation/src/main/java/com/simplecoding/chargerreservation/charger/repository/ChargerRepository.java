@@ -1,5 +1,6 @@
 package com.simplecoding.chargerreservation.charger.repository;
 
+import com.simplecoding.chargerreservation.charger.dto.ChargerDto;
 import com.simplecoding.chargerreservation.charger.entity.ChargerEntity;
 import com.simplecoding.chargerreservation.charger.entity.ChargerId;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,8 +14,10 @@ import java.util.List;
 @Repository
 public interface ChargerRepository extends JpaRepository<ChargerEntity, ChargerId> {
 
-    // 1. 특정 충전소의 모든 충전기 목록 조회
-    List<ChargerEntity> findByStatId(String statId);
+    // 기존 것(상세보기용)도 두고, 목록용을 하나 더 추가하는 겁니다.
+    List<ChargerEntity> findByStatId(String statId); // 단일 조회용 (상세페이지)
+
+    List<ChargerEntity> findByStatIdIn(List<String> statIds); // 대량 조회용 (목록페이지 - 성능 최적화)
 
     /**
      * 2. 상태 업데이트 (Bulk Update)
@@ -53,4 +56,9 @@ public interface ChargerRepository extends JpaRepository<ChargerEntity, ChargerI
             "  VALUES (:statId, :chargerId, :stat, :statUpdDt, CURRENT_TIMESTAMP)", nativeQuery = true)
     void mergeChargerStatus(@Param("statId") String statId, @Param("chargerId") String chargerId,
                             @Param("stat") String stat, @Param("statUpdDt") String statUpdDt);
+
+    @Query("""
+    SELECT c FROM ChargerEntity c JOIN FETCH c.station WHERE c.statId = :statId
+""")
+    List<ChargerEntity> findByStatIdWithStation(@Param("statId") String statId);
 }

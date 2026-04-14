@@ -1,5 +1,6 @@
 package com.simplecoding.chargerreservation.penalty.service;
 
+import com.simplecoding.chargerreservation.common.SmsService;
 import com.simplecoding.chargerreservation.penalty.dto.PenaltyRequestDto;
 import com.simplecoding.chargerreservation.penalty.dto.PenaltyResponseDto;
 import com.simplecoding.chargerreservation.penalty.entity.PenaltyHistory;

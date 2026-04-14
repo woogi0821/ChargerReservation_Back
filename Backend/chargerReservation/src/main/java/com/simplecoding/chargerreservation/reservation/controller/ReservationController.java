@@ -49,4 +49,11 @@ public class ReservationController {
         log.info("충전기 가용 여부 조회 - 충전기 ID : {}",chargerId);
         return ResponseEntity.ok(reservationService.isChargerAvailable(chargerId));
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ReservationDto.Response> getReservation(
+            @PathVariable Long id,
+            @RequestHeader("X-MemberId") Long memberId) {
+        return ResponseEntity.ok(reservationService.getReservation(id, memberId));
+    }
 }

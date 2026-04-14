@@ -15,46 +15,53 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class StationDto {
 
-    // 1. [기본 정보] - 명칭, 주소, 위치 관련 (상세 항목 1, 2, 9, 10, 11)
+    // 1. [기본 정보]
     private String statId;
-    private String statNm;          // 1. 충전소명
-    private String addr;            // 2. 주소
-    private String bnm;             // 9. 기관명
-    private String location;        // 10. 상세위치
-    private String useTime;         // 11. 이용가능 시간
+    private String statNm;          // 충전소명
+    private String addr;            // 주소
+    private String bnm;             // 기관명
+    private String location;        // 상세위치
+    private String useTime;         // 이용가능 시간
     private Double lat;
     private Double lng;
-    private Double distance;        // 3. 거리
+    private Double distance;        // 거리
 
-    // 2. [상태 및 마커 정보] - 실시간 현황 (상세 항목 5, 12)
+    // 2. [상태 및 마커 정보]
     private Integer availableCount;
     private Integer totalCount;
     private Integer brokenCount;
-    private String occupancy;       // 5. 현황 (예: 2/4 (고장2))
-    private String lastUpdated;     // 12. 업데이트 날짜
-    private String statSummary;     // 요약 텍스트
-    private String markerColor;     // 마커 색상
-    private String warningLevel;    // 경고 수준
-    private String fastChargerStatus;
-    private String slowChargerStatus;
+    private String occupancy;
+    private String lastUpdated;
+    private String statSummary;
+    private String markerColor;
+    private String warningLevel;
+    private String fastChargerStatus; // 급속 현황 텍스트
+    private String slowChargerStatus; // 완속 현황 텍스트
 
-    // 3. [제약 및 주차 정보] - 이용 조건 (상세 항목 6, 7, 8)
-    private String limitYn;         // 6. 주차가능유무 (이용자제한 여부)
-    private String parkingFree;     // 7. 주차요금 (무료/유료 여부)
-    private String limitDetail;     // 8. 이용자제한 상세내용
-    private String parkingInfo;     // 변환용 ("무료주차" 등)
-    private String openStatus;      // 변환용 ("개방" 등)
+    // 3. [제약 및 주차 정보]
+    private String limitYn;
+    private String parkingFree;
+    private String limitDetail;
+    private String parkingInfo;
+    private String openStatus;
 
-    // 4. [요금 정보] - 가격 비교 및 계절 (상세 항목 4)
-    private Double currentPrice;    // 현재 요금
-    private Double lastYearPrice;   // 작년 요금
-    private Double priceDiff;       // 요금 차이
-    private String season;          // 현재 계절 (봄/가을, 여름, 겨울)
+    // 4. [요금 정보]
+    // 급속 관련 (기존 필드 유지)
+    private Double currentPrice;    // 급속 현재 요금
+    private Double lastYearPrice;   // 급속 작년 요금
+    private Double priceDiff;       // 급속 요금 차이
+
+    // 완속 관련 (추가된 필드)
+    private Double slowPrice;          // 완속 현재 요금
+    private Double slowLastYearPrice;  // 완속 작년 요금
+    private Double slowPriceDiff;      // 완속 요금 차이
+
+    private String season;
     private List<ChargerDto> chargers;
     private ChargerPriceDto priceDetail;
 
     /**
-     * 상태 및 마커 정보 세팅 (계산 로직만 유지)
+     * 상태 및 마커 정보 세팅
      */
     public void setStatusInfo(int available, int total, int broken) {
         this.availableCount = Math.max(0, (available + broken > total) ? total - broken : available);
@@ -83,44 +90,55 @@ public class StationDto {
             this.statSummary = "확인불가";
             this.warningLevel = "NONE";
         }
-
-        // ⭐ [추가] 테스트 코드에서 검증하는 occupancy 필드에 값을 채워줍니다.
         this.occupancy = this.statSummary;
     }
 
+    /**
+     * 급속/완속 개별 상태 세팅
+     */
     public void setTypeDetailStatus(String type, int available, int total, int broken) {
-        String statusText = (broken > 0) ? String.format("%s %d/%d (고장%d)", type, available, total, broken) : String.format("%s %d/%d", type, available, total);
+        String statusText = (broken > 0)
+                ? String.format("%s %d/%d (고장%d)", type, available, total, broken)
+                : String.format("%s %d/%d", type, available, total);
+
         if ("급속".equals(type)) this.fastChargerStatus = statusText;
         else if ("완속".equals(type)) this.slowChargerStatus = statusText;
     }
 
     /**
-     * 프론트엔드에서 호출할 요금 표시용 메서드
+     * [수정] 요금 비교 및 계절 정보 세팅 로직
+     * 급속과 완속 데이터를 모두 받아 각각의 차이를 저장합니다.
      */
+    public void setPriceComparison(Double fastCurr, Double fastLast, Double slowCurr, Double slowLast, String currentMonth) {
+        // 1. 급속 세팅
+        this.currentPrice = fastCurr;
+        this.lastYearPrice = fastLast;
+        if (fastCurr != null && fastLast != null) {
+            this.priceDiff = fastCurr - fastLast;
+        }
+
+        // 2. 완속 세팅
+        this.slowPrice = slowCurr;
+        this.slowLastYearPrice = slowLast;
+        if (slowCurr != null && slowLast != null) {
+            this.slowPriceDiff = slowCurr - slowLast;
+        }
+
+        // 3. 계절 판별
+        try {
+            int month = Integer.parseInt(currentMonth);
+            if ((month >= 3 && month <= 5) || (month >= 9 && month <= 11)) this.season = "봄/가을";
+            else if (month >= 6 && month <= 8) this.season = "여름";
+            else this.season = "겨울";
+        } catch (Exception e) {
+            this.season = "정보없음";
+        }
+    }
+
     public String getPriceDisplayText() {
         if (this.currentPrice == null || this.currentPrice <= 0) {
-            return "현장에서 확인하세요";
+            return "현장확인";
         }
         return String.format("%.1f원/kWh", this.currentPrice);
     }
-
-    /**
-     * [추가] 요금 비교 및 계절 정보 세팅 로직
-     * 서비스 단에서 호출하여 데이터를 완성합니다.
-     */
-    public void setPriceComparison(Double current, Double lastYear, String currentMonth) {
-        this.currentPrice = current;
-        this.lastYearPrice = lastYear;
-        if (current != null && lastYear != null) {
-            this.priceDiff = current - lastYear;
-        }
-
-        // 계절 판별 (간단 로직)
-        int month = Integer.parseInt(currentMonth);
-        if (month >= 3 && month <= 5 || month >= 9 && month <= 11) this.season = "봄/가을";
-        else if (month >= 6 && month <= 8) this.season = "여름";
-        else this.season = "겨울";
-    }
-
-
 }
