@@ -27,7 +27,8 @@ public class AdminStationDto {
                 station.getStatId(),
                 station.getStatNm(),
                 station.getAddr(),
-                station.getLocation(),
+                // "null" 문자열로 저장된 경우 null 로 변환
+                "null".equals(station.getLocation()) ? null : station.getLocation(),
                 station.getUseTime(),
                 station.getBnm(),
                 station.getParkingFree(),
