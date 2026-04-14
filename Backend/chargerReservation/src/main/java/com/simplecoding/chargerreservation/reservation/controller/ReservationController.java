@@ -38,7 +38,7 @@ public class ReservationController {
     @PatchMapping("/{id}/cancel")
     public ResponseEntity<Void> cancelReservation(
             @PathVariable Long id,
-            @RequestHeader("X-memberId") Long memberId) {
+            @RequestHeader("X-MemberId") Long memberId) {
                 log.info("예약 취소 요청 - 예약 ID : {},회원 ID : {}",id, memberId);
                 reservationService.cancelReservation(id,memberId);
                 return ResponseEntity.ok().build();
@@ -49,4 +49,17 @@ public class ReservationController {
         log.info("충전기 가용 여부 조회 - 충전기 ID : {}",chargerId);
         return ResponseEntity.ok(reservationService.isChargerAvailable(chargerId));
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ReservationDto.Response> getReservation(
+            @PathVariable Long id,
+            @RequestHeader("X-MemberId") Long memberId) {
+        return ResponseEntity.ok(reservationService.getReservation(id, memberId));
+    }
+//    @GetMapping("/admin/all")
+//    public ResponseEntity<List<ReservationDto.Response>> getAllReservationsForAdmin() {
+//        log.info("관리자용 전체 예약 목록 조회 요청");
+//        // 서비스에 getAllReservations() 기능을 하나 만드셔야 합니다.
+//        return ResponseEntity.ok(reservationService.gerAll);
+//    }
 }

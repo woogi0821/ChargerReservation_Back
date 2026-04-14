@@ -95,6 +95,7 @@ public class MemberService {
             .grantType("Bearer")
             .accessToken(accessToken)
             .refreshToken(refreshToken)
+            .memberGrade(member.getMemberGrade())
             .build();
     }
 
