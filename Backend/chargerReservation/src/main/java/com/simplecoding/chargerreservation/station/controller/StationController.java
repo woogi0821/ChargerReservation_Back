@@ -112,19 +112,12 @@ public class StationController {
             @RequestParam Double lat,
 
             @RequestParam Double lng,
-
             @RequestParam(defaultValue = "0") int page,
-
-// ✨ 추가: 프론트의 필터 상태를 전달받음 (기본값 '급속')
-
+            // ✨ 추가: 프론트의 필터 상태를 전달받음 (기본값 '급속')
             @RequestParam(defaultValue = "급속") String type) {
 
-
-
         if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
-
             log.warn("⚠️ [API] 유효하지 않은 위치 정보입니다.");
-
             return ResponseEntity.ok(List.of());
 
         }
@@ -132,21 +125,13 @@ public class StationController {
 
 
         try {
-
-// ✨ 서비스 호출 시 type을 함께 전달하도록 수정
-
-// (단, 서비스 내부에서는 이 type의 요금을 '우선' 조회하거나
-
-// 제가 앞서 알려드린 대로 p1, p2 조인을 통해 '둘 다' 가져오는 것이 핵심입니다.)
-
+            // ✨ 서비스 호출 시 type을 함께 전달하도록 수정
+            // (단, 서비스 내부에서는 이 type의 요금을 '우선' 조회하거나
+            // 제가 앞서 알려드린 대로 p1, p2 조인을 통해 '둘 다' 가져오는 것이 핵심입니다.)
             List<StationDto> stations = stationService.getStationsWithDistancePaged(lat, lng, page);
 
-
-
             log.info("📋 [API] 주변 목록 반환: {}건 (위도: {}, 경도: {}, 타입: {}, 페이지: {})",
-
                     stations.size(), lat, lng, type, page);
-
             return ResponseEntity.ok(stations);
 
 
@@ -154,9 +139,7 @@ public class StationController {
         } catch (Exception e) {
 
             log.error("❌ [API] 목록 조회 중 서버 오류 발생: ", e);
-
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-
         }
 
     }

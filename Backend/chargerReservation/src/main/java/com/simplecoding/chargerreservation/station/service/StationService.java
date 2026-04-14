@@ -91,85 +91,48 @@ public class StationService {
 
         String season = "봄가을";
 
-
-
-// 2. Repository 호출
-
-// [중요] Repository에서 p1.UNIT_PRICE as currentPrice, p2.UNIT_PRICE as slowPrice를 가져와야 함
-
-// 기존에 넘기던 'type' 파라미터는 쿼리 내부에서 '급속'/'완속'으로 하드코딩했으므로 제거
-
+        // 2. Repository 호출
+        // [중요] Repository에서 p1.UNIT_PRICE as currentPrice, p2.UNIT_PRICE as slowPrice를 가져와야 함
+        // 기존에 넘기던 'type' 파라미터는 쿼리 내부에서 '급속'/'완속'으로 하드코딩했으므로 제거
         List<MarkerProjection> list = stationRepository.findStationsWithinRadiusWithPaging(
-
                 lat, lng, 1.5, year, season, page * 20, 20);
-
-
 
         if (list.isEmpty()) return Collections.emptyList();
 
-
-
-// 💡 성능 최적화 (N+1 문제 해결): 현재 페이지에 해당하는 모든 충전소 ID 추출
-
+        // 💡 성능 최적화 (N+1 문제 해결): 현재 페이지에 해당하는 모든 충전소 ID 추출
         List<String> statIds = list.stream().map(MarkerProjection::getStatId).collect(Collectors.toList());
 
-
-
-// 해당 충전소들의 모든 충전기 정보를 한 번의 쿼리로 가져옴
-
+        // 해당 충전소들의 모든 충전기 정보를 한 번의 쿼리로 가져옴
         List<ChargerEntity> allChargers = chargerRepository.findByStatIdIn(statIds);
 
-
-
-// 충전소 ID별로 그룹화 (메모리 내에서 매핑)
-
+        // 충전소 ID별로 그룹화 (메모리 내에서 매핑)
         Map<String, List<ChargerEntity>> chargerMap = allChargers.stream()
-
                 .collect(Collectors.groupingBy(ChargerEntity::getStatId));
-
-
 
         Set<String> fastTypes = Set.of("01", "03", "04", "05", "06", "08");
 
         Set<String> brokenStats = Set.of("1", "4", "5");
 
-
-
         return list.stream()
 
                 .map(p -> {
-
-// 1. 기본 정보 매핑
-
+                    // 1. 기본 정보 매핑
                     StationDto dto = mapStruct.toDto(p);
-
                     dto.setStatId(p.getStatId());
-
                     dto.setStatNm(p.getStatNm());
 
                     dto.setAddr(p.getAddr());
 
                     dto.setDistance(p.getDistance());
-
                     dto.setBnm(p.getBnm());
 
-
-
-// ✨ [핵심 수정] 급속과 완속 요금을 각각 세팅
-
-// MarkerProjection 인터페이스에 getSlowPrice()가 추가되어 있어야 함
-
+                    // ✨ [핵심 수정] 급속과 완속 요금을 각각 세팅
+                    // MarkerProjection 인터페이스에 getSlowPrice()가 추가되어 있어야 함
                     dto.setCurrentPrice(p.getCurrentPrice()); // 급속 요금
+                    dto.setSlowPrice(p.getSlowPrice());       // 완속 요금 추가
 
-                    dto.setSlowPrice(p.getSlowPrice()); // 완속 요금 추가
-
-
-
-// 2. 충전기 상세 현황 (미리 그룹화된 맵에서 꺼내기 - DB 호출 없음)
-
+                    // 2. 충전기 상세 현황 (미리 그룹화된 맵에서 꺼내기 - DB 호출 없음)
                     List<ChargerEntity> chargers = chargerMap.getOrDefault(p.getStatId(), Collections.emptyList());
-
-
 
                     int total = chargers.size();
 
@@ -336,14 +299,14 @@ public class StationService {
                 .collect(Collectors.toList());
     }
 
-// 보조 메서드: 타입별 상태 세팅 (코드 중복 방지)
-private void processTypeDetail(StationDto dto, String type, List<ChargerEntity> list, Set<String> brokenStats) {
-    if (list.isEmpty()) return;
-    int total = list.size();
-    int avail = (int) list.stream().filter(c -> "2".equals(c.getStat())).count();
-    int broken = (int) list.stream().filter(c -> brokenStats.contains(c.getStat())).count();
-    dto.setTypeDetailStatus(type, avail, total, broken);
-}
+    // 보조 메서드: 타입별 상태 세팅 (코드 중복 방지)
+    private void processTypeDetail(StationDto dto, String type, List<ChargerEntity> list, Set<String> brokenStats) {
+        if (list.isEmpty()) return;
+        int total = list.size();
+        int avail = (int) list.stream().filter(c -> "2".equals(c.getStat())).count();
+        int broken = (int) list.stream().filter(c -> brokenStats.contains(c.getStat())).count();
+        dto.setTypeDetailStatus(type, avail, total, broken);
+    }
 
 
 

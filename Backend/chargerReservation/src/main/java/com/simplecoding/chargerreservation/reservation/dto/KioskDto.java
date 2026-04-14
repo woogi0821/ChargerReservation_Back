@@ -1,7 +1,10 @@
 package com.simplecoding.chargerreservation.reservation.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import lombok.Builder;
 import lombok.Getter;
+
+import java.time.LocalDateTime;
 
 public class KioskDto {
     @Getter
@@ -26,5 +29,14 @@ public class KioskDto {
     public static class EndRequest {
         @NotBlank(message = "충전기 ID가 필요합니다.")
         private String chargerId;
+    }
+
+    @Getter
+    @Builder
+    public static class StatusResponse {
+        private String chargerId;
+        private String status;
+        private LocalDateTime startTime;
+        private LocalDateTime endTime;
     }
 }

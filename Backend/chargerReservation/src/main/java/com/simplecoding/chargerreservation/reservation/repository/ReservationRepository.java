@@ -69,4 +69,9 @@ boolean isChargerCurrentlyOccupied(
     List<Reservation> findNoShowCancelTargets(@Param("targetTime") LocalDateTime targetTime);
 
 //    Example<? extends Reservation> id(Long id);
+
+    List<Reservation> findByStatusAndEndTimeBefore(String status, LocalDateTime endTime);
+
+    Optional<Reservation> findTopByChargerIdAndStatusIn(String chargerId, List<String> statues);
+
 }
