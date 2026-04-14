@@ -82,9 +82,13 @@ public class StationService {
      * - 무한 스크롤이나 목록 페이징 UI에 사용됩니다.
      */
     @Transactional(readOnly = true)
+
     public List<StationDto> getStationsWithDistancePaged(Double lat, Double lng, int page) {
-        // 1. 환경 설정 (계절 및 연도)
+
+// 1. 환경 설정 (계절 및 연도)
+
         int year = 2026;
+
         String season = "봄가을";
 
         // 2. Repository 호출
@@ -106,15 +110,19 @@ public class StationService {
                 .collect(Collectors.groupingBy(ChargerEntity::getStatId));
 
         Set<String> fastTypes = Set.of("01", "03", "04", "05", "06", "08");
+
         Set<String> brokenStats = Set.of("1", "4", "5");
 
         return list.stream()
+
                 .map(p -> {
                     // 1. 기본 정보 매핑
                     StationDto dto = mapStruct.toDto(p);
                     dto.setStatId(p.getStatId());
                     dto.setStatNm(p.getStatNm());
+
                     dto.setAddr(p.getAddr());
+
                     dto.setDistance(p.getDistance());
                     dto.setBnm(p.getBnm());
 
@@ -127,20 +135,35 @@ public class StationService {
                     List<ChargerEntity> chargers = chargerMap.getOrDefault(p.getStatId(), Collections.emptyList());
 
                     int total = chargers.size();
+
                     int available = (int) chargers.stream().filter(c -> "2".equals(c.getStat())).count();
+
                     int broken = (int) chargers.stream().filter(c -> brokenStats.contains(c.getStat())).count();
+
+
 
                     dto.setStatusInfo(available, total, broken);
 
-                    // 3. 급속/완속 상세 텍스트 세팅
+
+
+// 3. 급속/완속 상세 텍스트 세팅
+
                     Map<Boolean, List<ChargerEntity>> split = chargers.stream()
+
                             .collect(Collectors.partitioningBy(c -> fastTypes.contains(c.getChargerType())));
 
+
+
                     processTypeDetail(dto, "급속", split.get(true), brokenStats);
+
                     processTypeDetail(dto, "완속", split.get(false), brokenStats);
 
+
+
                     return dto;
+
                 }).collect(Collectors.toList());
+
     }
 
     /**
@@ -256,15 +279,23 @@ public class StationService {
      * - 검색어(키워드)를 입력받아 충전소명이나 주소 등에서 일치하는 데이터를 찾습니다.
      * - 좌표 기준이 아니므로 거리순 정렬보다는 매칭 결과 위주로 반환합니다.
      */
+// StationService.java
+
     @Transactional(readOnly = true)
-    public List<StationDto> searchStations(String keyword) {
+    public List<StationDto> searchStationsNearby(String keyword, Double lat, Double lng) {
         if (keyword == null || keyword.trim().isEmpty()) return List.of();
 
-        List<StationEntity> entities = stationRepository.findByIntegratedSearch(keyword.trim());
+        // 1. 반경 1.5km + 키워드 검색 실행
+        List<MarkerProjection> results = stationRepository.findNearbyByKeyword(keyword.trim(), lat, lng);
 
-        // [수정] 수동 루프 삭제 -> MapStruct 스트림 활용
-        return entities.stream()
-                .map(mapStruct::toDto)
+        // 2. Projection -> DTO 변환 (거리 정보 포함)
+        return results.stream()
+                .map(p -> {
+                    StationDto dto = mapStruct.toDto(p);
+                    dto.setDistance(p.getDistance());
+                    // 필요 시 추가적인 상태 정보(availableCount 등) 세팅 로직 호출
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 

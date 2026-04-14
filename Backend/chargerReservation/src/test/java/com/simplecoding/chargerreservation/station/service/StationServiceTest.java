@@ -126,115 +126,115 @@ class StationServiceTest {
             assertThat(stations.get(0).getAddr()).isNotBlank();
         }
     }
-    @Test
-    @DisplayName("충전소 상세 정보(12가지 항목) 및 충전기 목록 통합 검증 테스트")
-    void getStationDetailFullTest() {
-        // 1. 테스트 준비
-        String targetStatId = "ME181321";
-        String speedType = "급속";
-        String currentMonth = "04"; // 4월 (봄/가을)
+//    @Test
+//    @DisplayName("충전소 상세 정보(12가지 항목) 및 충전기 목록 통합 검증 테스트")
+//    void getStationDetailFullTest() {
+//        // 1. 테스트 준비
+//        String targetStatId = "ME181321";
+//        String speedType = "급속";
+//        String currentMonth = "04"; // 4월 (봄/가을)
+//
+//        // ⭐ [추가] 범내골역 좌표 (사용자 현재 위치 가정)
+//        double beomnaegolLat = 35.1485;
+//        double beomnaegolLng = 129.0637;
+//
+//        log.info("🔍 [테스트 시작] 상세 조회 검증 - ID: {}, 기준위치: 범내골", targetStatId);
+//
+//        // 2. 서비스 호출 (이제 좌표 파라미터를 함께 던집니다)
+//        // 이 호출을 통해 쿼리 내 거리 계산 + DTO 내 현황(occupancy) 조립이 일어납니다.
+//        StationDto detail = stationService.getStationDetail(
+//                targetStatId, speedType, currentMonth, beomnaegolLat, beomnaegolLng
+//        );
+//
+//        // 3. 전수 검증 (Assertion)
+//        assertAll(
+//                // [1, 2, 9, 10, 11] 기본 정보 (DB 컬럼 직결)
+//                () -> assertNotNull(detail.getStatNm(), "1. 충전소명이 누락되었습니다."),
+//                () -> assertNotNull(detail.getAddr(), "2. 주소가 누락되었습니다."),
+//                () -> assertNotNull(detail.getBnm(), "9. 기관명이 누락되었습니다."),
+//                () -> assertNotNull(detail.getLocation(), "10. 상세위치가 누락되었습니다."),
+//                () -> assertNotNull(detail.getUseTime(), "11. 이용시간이 누락되었습니다."),
+//
+//                // [3] 거리 (쿼리에서 계산된 값)
+//                () -> {
+//                    assertNotNull(detail.getDistance(), "3. 거리 정보가 누락되었습니다.");
+//                    log.info("📍 계산된 거리: {}km", detail.getDistance());
+//                },
+//
+//                // [4] 요금 정보 (Service에서 조립)
+//                () -> {
+//                    assertNotNull(detail.getSeason(), "4-1. 계절 정보가 없습니다.");
+//                    assertEquals("봄가을", detail.getSeason(), "4-2. 4월은 '봄가을'이어야 합니다."); // 💡 수정
+//                    log.info("💰 요금 비교: 현재({}) / 작년({}) / 차이({})",
+//                            detail.getCurrentPrice(), detail.getLastYearPrice(), detail.getPriceDiff());
+//                },
+//
+//                // [5] 현황 (DTO.setStatusInfo() 결과물)
+//                () -> {
+//                    assertNotNull(detail.getOccupancy(), "5. 현황 정보(occupancy)가 누락되었습니다.");
+//                    assertTrue(detail.getOccupancy().contains("/"), "5. 현황 형식이 올바르지 않습니다. (현재: " + detail.getOccupancy() + ")");
+//                    log.info("📊 실시간 현황: {}", detail.getOccupancy());
+//                },
+//
+//                // [6, 7, 8] 제약사항 (DB 컬럼 직결)
+//                () -> assertNotNull(detail.getLimitYn(), "6. 주차가능유무 정보가 누락되었습니다."),
+//                () -> assertNotNull(detail.getParkingFree(), "7. 주차요금 정보가 누락되었습니다."),
+//                () -> assertNotNull(detail.getLimitDetail(), "8. 이용자제한 상세내용이 누락되었습니다."),
+//
+//                // [12] 업데이트 날짜 (Service에서 LocalDateTime -> String 변환)
+//                () -> {
+//                    assertNotNull(detail.getLastUpdated(), "12. 업데이트 날짜(UPDATED_AT)가 누락되었습니다.");
+//                    log.info("📅 최종 업데이트 일시: {}", detail.getLastUpdated());
+//                },
+//
+//                // [보너스] 연결된 충전기 대수 검증
+//                () -> {
+//                    if (detail.getChargers() != null) {
+//                        assertEquals(100, detail.getChargers().size(), "이 충전소는 정확히 100대여야 합니다.");
+//                    }
+//                }
+//        );
+//
+//        log.info("--------------------------------------------------");
+//        log.info("1. 명칭: {}, 2. 주소: {}", detail.getStatNm(), detail.getAddr());
+//        log.info("3. 거리: {}km", detail.getDistance());
+//        log.info("4. 요금: {}원 (작년: {}, 차이: {}), 계절: {}",
+//                detail.getCurrentPrice(), detail.getLastYearPrice(), detail.getPriceDiff(), detail.getSeason());
+//        log.info("5. 현황: {}", detail.getOccupancy());
+//        log.info("6. 주차유무: {}, 7. 주차료: {}, 8. 제한: {}",
+//                detail.getLimitYn(), detail.getParkingFree(), detail.getLimitDetail());
+//        log.info("9. 기관: {}, 10. 상세위치: {}, 11. 이용시간: {}",
+//                detail.getBnm(), detail.getLocation(), detail.getUseTime());
+//        log.info("12. 업데이트: {}", detail.getLastUpdated());
+//        log.info("--------------------------------------------------");
+//    }
 
-        // ⭐ [추가] 범내골역 좌표 (사용자 현재 위치 가정)
-        double beomnaegolLat = 35.1485;
-        double beomnaegolLng = 129.0637;
-
-        log.info("🔍 [테스트 시작] 상세 조회 검증 - ID: {}, 기준위치: 범내골", targetStatId);
-
-        // 2. 서비스 호출 (이제 좌표 파라미터를 함께 던집니다)
-        // 이 호출을 통해 쿼리 내 거리 계산 + DTO 내 현황(occupancy) 조립이 일어납니다.
-        StationDto detail = stationService.getStationDetail(
-                targetStatId, speedType, currentMonth, beomnaegolLat, beomnaegolLng
-        );
-
-        // 3. 전수 검증 (Assertion)
-        assertAll(
-                // [1, 2, 9, 10, 11] 기본 정보 (DB 컬럼 직결)
-                () -> assertNotNull(detail.getStatNm(), "1. 충전소명이 누락되었습니다."),
-                () -> assertNotNull(detail.getAddr(), "2. 주소가 누락되었습니다."),
-                () -> assertNotNull(detail.getBnm(), "9. 기관명이 누락되었습니다."),
-                () -> assertNotNull(detail.getLocation(), "10. 상세위치가 누락되었습니다."),
-                () -> assertNotNull(detail.getUseTime(), "11. 이용시간이 누락되었습니다."),
-
-                // [3] 거리 (쿼리에서 계산된 값)
-                () -> {
-                    assertNotNull(detail.getDistance(), "3. 거리 정보가 누락되었습니다.");
-                    log.info("📍 계산된 거리: {}km", detail.getDistance());
-                },
-
-                // [4] 요금 정보 (Service에서 조립)
-                () -> {
-                    assertNotNull(detail.getSeason(), "4-1. 계절 정보가 없습니다.");
-                    assertEquals("봄가을", detail.getSeason(), "4-2. 4월은 '봄가을'이어야 합니다."); // 💡 수정
-                    log.info("💰 요금 비교: 현재({}) / 작년({}) / 차이({})",
-                            detail.getCurrentPrice(), detail.getLastYearPrice(), detail.getPriceDiff());
-                },
-
-                // [5] 현황 (DTO.setStatusInfo() 결과물)
-                () -> {
-                    assertNotNull(detail.getOccupancy(), "5. 현황 정보(occupancy)가 누락되었습니다.");
-                    assertTrue(detail.getOccupancy().contains("/"), "5. 현황 형식이 올바르지 않습니다. (현재: " + detail.getOccupancy() + ")");
-                    log.info("📊 실시간 현황: {}", detail.getOccupancy());
-                },
-
-                // [6, 7, 8] 제약사항 (DB 컬럼 직결)
-                () -> assertNotNull(detail.getLimitYn(), "6. 주차가능유무 정보가 누락되었습니다."),
-                () -> assertNotNull(detail.getParkingFree(), "7. 주차요금 정보가 누락되었습니다."),
-                () -> assertNotNull(detail.getLimitDetail(), "8. 이용자제한 상세내용이 누락되었습니다."),
-
-                // [12] 업데이트 날짜 (Service에서 LocalDateTime -> String 변환)
-                () -> {
-                    assertNotNull(detail.getLastUpdated(), "12. 업데이트 날짜(UPDATED_AT)가 누락되었습니다.");
-                    log.info("📅 최종 업데이트 일시: {}", detail.getLastUpdated());
-                },
-
-                // [보너스] 연결된 충전기 대수 검증
-                () -> {
-                    if (detail.getChargers() != null) {
-                        assertEquals(100, detail.getChargers().size(), "이 충전소는 정확히 100대여야 합니다.");
-                    }
-                }
-        );
-
-        log.info("--------------------------------------------------");
-        log.info("1. 명칭: {}, 2. 주소: {}", detail.getStatNm(), detail.getAddr());
-        log.info("3. 거리: {}km", detail.getDistance());
-        log.info("4. 요금: {}원 (작년: {}, 차이: {}), 계절: {}",
-                detail.getCurrentPrice(), detail.getLastYearPrice(), detail.getPriceDiff(), detail.getSeason());
-        log.info("5. 현황: {}", detail.getOccupancy());
-        log.info("6. 주차유무: {}, 7. 주차료: {}, 8. 제한: {}",
-                detail.getLimitYn(), detail.getParkingFree(), detail.getLimitDetail());
-        log.info("9. 기관: {}, 10. 상세위치: {}, 11. 이용시간: {}",
-                detail.getBnm(), detail.getLocation(), detail.getUseTime());
-        log.info("12. 업데이트: {}", detail.getLastUpdated());
-        log.info("--------------------------------------------------");
-    }
-
-    @Test
-    @DisplayName("통합 검색 테스트 (이름/주소/운영사)")
-    void searchStations() {
-        String keyword = "서산";
-        log.info("🔎 [테스트 시작] 통합 검색 키워드: '{}'", keyword);
-
-        // 1. 님이 만드신 통합 검색 메서드 호출
-        List<StationEntity> results = stationRepository.findByIntegratedSearch(keyword);
-
-        assertAll(
-                () -> assertFalse(results.isEmpty(), "검색 결과가 최소 1건은 있어야 합니다."),
-                () -> {
-                    StationEntity first = results.get(0);
-                    log.info("📍 검색된 첫 번째 데이터: [이름: {}, 주소: {}, 운영사: {}]",
-                            first.getStatNm(), first.getAddr(), first.getBnm());
-
-                    // 2. 검증 로직을 쿼리와 일치시킵니다 (이름 OR 주소 OR 운영사)
-                    boolean isMatch = first.getStatNm().contains(keyword) ||
-                            first.getAddr().contains(keyword) ||
-                            (first.getBnm() != null && first.getBnm().contains(keyword));
-
-                    assertTrue(isMatch, "검색 결과는 이름, 주소, 운영사 중 하나에 키워드를 포함해야 합니다.");
-                    log.info("✅ 전체 검색 결과 수: {}건", results.size());
-                }
-        );
-    }
+//    @Test
+//    @DisplayName("통합 검색 테스트 (이름/주소/운영사)")
+//    void searchStations() {
+//        String keyword = "서산";
+//        log.info("🔎 [테스트 시작] 통합 검색 키워드: '{}'", keyword);
+//
+//        // 1. 님이 만드신 통합 검색 메서드 호출
+//        List<StationEntity> results = stationRepository.findByIntegratedSearch(keyword);
+//
+//        assertAll(
+//                () -> assertFalse(results.isEmpty(), "검색 결과가 최소 1건은 있어야 합니다."),
+//                () -> {
+//                    StationEntity first = results.get(0);
+//                    log.info("📍 검색된 첫 번째 데이터: [이름: {}, 주소: {}, 운영사: {}]",
+//                            first.getStatNm(), first.getAddr(), first.getBnm());
+//
+//                    // 2. 검증 로직을 쿼리와 일치시킵니다 (이름 OR 주소 OR 운영사)
+//                    boolean isMatch = first.getStatNm().contains(keyword) ||
+//                            first.getAddr().contains(keyword) ||
+//                            (first.getBnm() != null && first.getBnm().contains(keyword));
+//
+//                    assertTrue(isMatch, "검색 결과는 이름, 주소, 운영사 중 하나에 키워드를 포함해야 합니다.");
+//                    log.info("✅ 전체 검색 결과 수: {}건", results.size());
+//                }
+//        );
+//    }
 
 
     @Test

@@ -19,6 +19,14 @@ public class JwtAuthenticationFilter extends GenericFilterBean {
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        String path = httpRequest.getRequestURI();
+
+        if (path.startsWith("/login/oauth2/") || path.startsWith("/oauth2/")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // Request Header에서 JWT 토큰 추출
         String token = resolveToken((HttpServletRequest) request);
 

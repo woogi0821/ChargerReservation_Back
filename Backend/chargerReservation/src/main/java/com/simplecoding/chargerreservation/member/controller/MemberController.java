@@ -24,7 +24,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/member")
+@RequestMapping("/api/member")
 public class MemberController {
 
     private final MemberService memberService;
@@ -64,8 +64,6 @@ public class MemberController {
                 .maxAge(60 * 60 * 24 * 7) // 7일 (DB 만료일과 동기화)
                 .sameSite("Lax")   // CSRF 방어
                 .build();
-
-            log.info("로그인 완료: ID={}, IP={}", memberDto.getLoginId(), clientIp);
 
             return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())

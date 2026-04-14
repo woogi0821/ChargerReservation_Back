@@ -35,11 +35,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // REST API이므로 기본 설정 해제(비활성화)
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .httpBasic(hp -> hp.disable())
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // REST API이므로 기본 설정 해제(비활성화)
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .httpBasic(hp -> hp.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
             // URL별 권한 설정(통행증 검사 규칙)
             // 재발급 경로 허용: "/member/refresh"를 추가해줘야 리액트가 AT 만료 시 RT를 들고 조용히 접근할 수 있음 -> 추가 예정
@@ -57,8 +57,11 @@ public class SecurityConfig {
             )
             // 소셜 로그인 설정
             .oauth2Login(oauth2 -> oauth2
-                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService)) // 소셜 서비스 연결
-                .successHandler(oAuth2SuccessHandler) // 인증 성공 시 실행될 로직
+                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))            // 소셜 서비스 연결
+                .successHandler(oAuth2SuccessHandler)                                                                       // 인증 성공 시 로직
+                .failureHandler((request, response, exception) -> {  // 로그인 실패 시 로직
+                    response.sendRedirect("http://localhost:5173/");
+                })
             )
             // 인증/인가 예외 처리 (가짜 토큰, 토큰 없음 등)
             .exceptionHandling(exception -> exception
@@ -69,8 +72,8 @@ public class SecurityConfig {
                 })
             )
 
-            // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 끼워 넣기
-            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+                // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 끼워 넣기
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -89,6 +92,4 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-
-
 }

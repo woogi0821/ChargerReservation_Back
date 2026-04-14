@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.simplecoding.chargerreservation.member.entity.QMember.member;
+
 @Service
 @RequiredArgsConstructor
 public class PenaltyService {
@@ -22,7 +24,7 @@ public class PenaltyService {
     private final PenaltyRepository penaltyRepository;
     private final SmsService smsService;
     private final ReservationRepository reservationRepository;
-
+    private final NotificationService notificationService;
     //      1. 패널티 등록 및 문자 발송 (단계별 처리)
     @Transactional
     public PenaltyResponseDto processPenaltyStep(PenaltyRequestDto requestDto, int step) {
@@ -121,6 +123,14 @@ public class PenaltyService {
         res.changeStatus("CANCELLED_PENALTY"); // 관리자가 직접 준 패널티라는 뜻
         res.markAlertAsSent(); // 스케줄러가 또 건드리지 못하게 마킹
 
-        // 5. (나중에 팀 회의 후) PenaltyHistory 저장 로직이 여기 들어올 자리입니다.
+        // 패널티 발송 로직 끝부분에 추가
+        notificationService.createNotification(
+                res.getMember(),
+                "패널티 안내",
+                "장기 점유로 인해 오늘 자정까지 이용이 제한됩니다.",
+                NotiType.PENALTY,
+                "/mypage/penalty"
+        );
     }
+
 }

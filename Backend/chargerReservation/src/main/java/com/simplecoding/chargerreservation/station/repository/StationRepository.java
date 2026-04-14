@@ -80,14 +80,25 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             @Param("offset") int offset,
             @Param("size") int size);
     /**
-     * 3. 통합 키워드 검색
+     * [수정] 내 위치 중심 1.5km 이내 + 키워드 통합 검색
      */
-    @Query("SELECT s FROM StationEntity s " +
-            "WHERE s.statNm LIKE %:keyword% " +
-            "OR s.addr LIKE %:keyword% " +
-            "OR s.bnm LIKE %:keyword% " +
-            "ORDER BY s.statNm ASC")
-    List<StationEntity> findByIntegratedSearch(@Param("keyword") String keyword);
+    @Query(value = "SELECT * FROM (" +
+            "    SELECT s.*, " +
+            "    ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
+            "        sin(:lat * 3.141592653589793 / 180) * sin(s.LAT * 3.141592653589793 / 180) + " +
+            "        cos(:lat * 3.141592653589793 / 180) * cos(s.LAT * 3.141592653589793 / 180) * " +
+            "        cos((s.LNG - :lng) * 3.141592653589793 / 180) " +
+            "    ))), 2) AS distance " +
+            "    FROM STATION s " +
+            "    WHERE (s.STAT_NM LIKE %:keyword% OR s.ADDR LIKE %:keyword% OR s.BNM LIKE %:keyword%) " +
+            ") t " +
+            "WHERE t.distance <= 1.5 " + // 💡 철벽 방어: 1.5km 밖은 결과에서 제외
+            "ORDER BY t.distance ASC " + // 💡 가까운 순서 정렬
+            "FETCH NEXT 100 ROWS ONLY", nativeQuery = true)
+    List<MarkerProjection> findNearbyByKeyword(
+            @Param("keyword") String keyword,
+            @Param("lat") Double lat,
+            @Param("lng") Double lng);
 
     /**
      * 3. [상세 조회용] 특정 충전소 정보 + 2개년 요금 히스토리 조인

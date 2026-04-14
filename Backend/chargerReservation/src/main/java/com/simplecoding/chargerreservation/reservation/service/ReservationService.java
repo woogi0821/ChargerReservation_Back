@@ -167,5 +167,14 @@ public class ReservationService {
                 .actualEndTime(r.getActualEndTime())
                 .isAlertSent(r.getIsAlertSent())
                 .build();
+    @Transactional(readOnly = true)
+    public List<ReservationDto.Response> getAllReservations() {
+        // 1. 모든 예약 데이터를 가져옴 (필요 시 최신순 정렬)
+        List<Reservation> reservations = reservationRepository.findAll();
+
+        // 2. Entity 리스트를 Dto 리스트로 변환하여 반환
+        return reservations.stream()
+                .map(res -> new ReservationDto.Response(res)) // 이미 만드신 생성자 활용
+                .collect(Collectors.toList());
     }
 }

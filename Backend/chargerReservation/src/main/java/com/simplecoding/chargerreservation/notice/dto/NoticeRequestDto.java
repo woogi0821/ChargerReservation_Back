@@ -16,4 +16,5 @@ public class NoticeRequestDto {
     private String content;
 
     private String fixYn; // 'Y' or 'N'
+    private Long noticeId; // 수정 시 필요
 }
