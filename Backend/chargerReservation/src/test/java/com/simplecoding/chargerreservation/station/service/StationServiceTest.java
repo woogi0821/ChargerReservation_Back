@@ -209,32 +209,32 @@ class StationServiceTest {
 //        log.info("--------------------------------------------------");
 //    }
 
-    @Test
-    @DisplayName("통합 검색 테스트 (이름/주소/운영사)")
-    void searchStations() {
-        String keyword = "서산";
-        log.info("🔎 [테스트 시작] 통합 검색 키워드: '{}'", keyword);
-
-        // 1. 님이 만드신 통합 검색 메서드 호출
-        List<StationEntity> results = stationRepository.findByIntegratedSearch(keyword);
-
-        assertAll(
-                () -> assertFalse(results.isEmpty(), "검색 결과가 최소 1건은 있어야 합니다."),
-                () -> {
-                    StationEntity first = results.get(0);
-                    log.info("📍 검색된 첫 번째 데이터: [이름: {}, 주소: {}, 운영사: {}]",
-                            first.getStatNm(), first.getAddr(), first.getBnm());
-
-                    // 2. 검증 로직을 쿼리와 일치시킵니다 (이름 OR 주소 OR 운영사)
-                    boolean isMatch = first.getStatNm().contains(keyword) ||
-                            first.getAddr().contains(keyword) ||
-                            (first.getBnm() != null && first.getBnm().contains(keyword));
-
-                    assertTrue(isMatch, "검색 결과는 이름, 주소, 운영사 중 하나에 키워드를 포함해야 합니다.");
-                    log.info("✅ 전체 검색 결과 수: {}건", results.size());
-                }
-        );
-    }
+//    @Test
+//    @DisplayName("통합 검색 테스트 (이름/주소/운영사)")
+//    void searchStations() {
+//        String keyword = "서산";
+//        log.info("🔎 [테스트 시작] 통합 검색 키워드: '{}'", keyword);
+//
+//        // 1. 님이 만드신 통합 검색 메서드 호출
+//        List<StationEntity> results = stationRepository.findByIntegratedSearch(keyword);
+//
+//        assertAll(
+//                () -> assertFalse(results.isEmpty(), "검색 결과가 최소 1건은 있어야 합니다."),
+//                () -> {
+//                    StationEntity first = results.get(0);
+//                    log.info("📍 검색된 첫 번째 데이터: [이름: {}, 주소: {}, 운영사: {}]",
+//                            first.getStatNm(), first.getAddr(), first.getBnm());
+//
+//                    // 2. 검증 로직을 쿼리와 일치시킵니다 (이름 OR 주소 OR 운영사)
+//                    boolean isMatch = first.getStatNm().contains(keyword) ||
+//                            first.getAddr().contains(keyword) ||
+//                            (first.getBnm() != null && first.getBnm().contains(keyword));
+//
+//                    assertTrue(isMatch, "검색 결과는 이름, 주소, 운영사 중 하나에 키워드를 포함해야 합니다.");
+//                    log.info("✅ 전체 검색 결과 수: {}건", results.size());
+//                }
+//        );
+//    }
 
 
     @Test

@@ -60,6 +60,8 @@ public class StationDto {
     private List<ChargerDto> chargers;
     private ChargerPriceDto priceDetail;
 
+
+
     /**
      * 상태 및 마커 정보 세팅
      */
