@@ -1,6 +1,7 @@
 package com.simplecoding.chargerreservation.admin.controller;
 
 import com.simplecoding.chargerreservation.admin.dto.AdminChargerDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminDashboardDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminInquiryDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
@@ -21,6 +22,12 @@ import java.util.List;
 public class AdminController {
 
     private final AdminService adminService;
+
+    // ── 대시보드 통계 조회 ────────────────────────────────────────────────────────
+    @GetMapping("/dashboard")
+    public ResponseEntity<AdminDashboardDto> getDashboardStats() {
+        return ResponseEntity.ok(adminService.getDashboardStats());
+    }
 
     // ── 관리자 전체 목록 조회 ────────────────────────────────────────────────────
     @GetMapping("/list")
@@ -121,10 +128,13 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    // ── 충전소 전체 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ────────────────
+    // ── 충전소 목록 조회 (keyword 있으면 검색 / 없으면 상위 100건) ────────────────
+    // GET /api/admin/stations
+    // GET /api/admin/stations?keyword=검색어
     @GetMapping("/stations")
-    public ResponseEntity<List<AdminStationDto>> getStationList() {
-        return ResponseEntity.ok(adminService.getStationList());
+    public ResponseEntity<List<AdminStationDto>> getStationList(
+            @RequestParam(required = false) String keyword) {
+        return ResponseEntity.ok(adminService.getStationList(keyword));
     }
 
     // ── 충전기 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
@@ -144,14 +154,12 @@ public class AdminController {
     }
 
     // ── 문의 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────
-    // GET /api/admin/inquiries
     @GetMapping("/inquiries")
     public ResponseEntity<List<AdminInquiryDto>> getInquiryList() {
         return ResponseEntity.ok(adminService.getInquiryList());
     }
 
     // ── 문의 답변 등록 (SUPER / ALL / INQUIRY 파트만 가능) ───────────────────────
-    // POST /api/admin/inquiries/{inquiryId}/answer
     @PostMapping("/inquiries/{inquiryId}/answer")
     public ResponseEntity<AdminInquiryDto> answerInquiry(
             @PathVariable Long inquiryId,

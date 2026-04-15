@@ -1,6 +1,7 @@
 package com.simplecoding.chargerreservation.admin.service;
 
 import com.simplecoding.chargerreservation.admin.dto.AdminChargerDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminDashboardDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminInquiryDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
@@ -112,16 +113,10 @@ class AdminServiceTest {
                 .stat(stat).output(50).method("DC콤보").build();
     }
 
-    // Inquiry 헬퍼
     private Inquiry createInquiry(Long inquiryId, String status) {
         Inquiry inquiry = Inquiry.builder()
-                .memberId(1L)
-                .category("충전기오류")
-                .title("테스트 문의")
-                .content("테스트 내용")
-                .status(status)
-                .insertTime(LocalDateTime.now())
-                .build();
+                .memberId(1L).category("충전기오류").title("테스트 문의")
+                .content("테스트 내용").status(status).insertTime(LocalDateTime.now()).build();
         ReflectionTestUtils.setField(inquiry, "inquiryId", inquiryId);
         return inquiry;
     }
@@ -964,8 +959,7 @@ class AdminServiceTest {
             mockRequesterChain(securityUtil, mockRequester);
             when(inquiryRepository.findById(1L)).thenReturn(Optional.of(mockInquiry));
             when(inquiryRepository.save(any(Inquiry.class))).thenReturn(mockInquiry);
-            AdminInquiryDto result = adminService.answerInquiry(1L, requestDto);
-            assertNotNull(result);
+            assertNotNull(adminService.answerInquiry(1L, requestDto));
             verify(inquiryRepository, times(1)).save(any(Inquiry.class));
         }
     }
@@ -1017,5 +1011,43 @@ class AdminServiceTest {
                     () -> adminService.answerInquiry(1L, requestDto));
             assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // 대시보드 통계 조회 테스트
+    // ════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("대시보드 통계 조회 — 성공")
+    void getDashboardStats_성공() {
+        // 회원 2명
+        when(memberRepository.count()).thenReturn(2L);
+
+        // 오늘 예약 1건
+        Reservation r1 = createReservation(1L, "RESERVED");
+        when(reservationRepository.findByStartTimeBetween(
+                any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(r1));
+
+        // 충전소 3개
+        when(stationRepository.count()).thenReturn(3L);
+
+        // 충전기 전체 중 고장(4) 1개 / 점검(5) 1개
+        ChargerEntity c1 = createCharger("ST001", "C001", "4");
+        ChargerEntity c2 = createCharger("ST001", "C002", "5");
+        ChargerEntity c3 = createCharger("ST001", "C003", "2");
+        when(chargerRepository.findAll()).thenReturn(List.of(c1, c2, c3));
+
+        // 미답변 문의 1건
+        Inquiry i1 = createInquiry(1L, "PENDING");
+        when(inquiryRepository.findByStatus("PENDING")).thenReturn(List.of(i1));
+
+        AdminDashboardDto result = adminService.getDashboardStats();
+
+        assertEquals(2L, result.getTotalMembers());
+        assertEquals(1L, result.getTodayReservations());
+        assertEquals(3L, result.getTotalStations());
+        assertEquals(2L, result.getBrokenChargers());
+        assertEquals(1L, result.getPendingInquiries());
     }
 }
