@@ -1,7 +1,7 @@
 package com.simplecoding.chargerreservation.scheduler;
 
 
-import com.simplecoding.chargerreservation.penalty.service.SmsService;
+import com.simplecoding.chargerreservation.common.SmsService;
 import com.simplecoding.chargerreservation.reservation.entity.Reservation;
 import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
