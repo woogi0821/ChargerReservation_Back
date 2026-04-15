@@ -49,6 +49,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/member/login", "/api/member/join", "/api/member/refresh").permitAll()
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .requestMatchers("/api/stations/**").permitAll()
+                .requestMatchers("/api/chargers/**").permitAll()
                 .requestMatchers("/api/admin/**").hasAuthority("Y")
                 .requestMatchers("/admin/**").hasAuthority("Y")
                 .requestMatchers("/download/**", "/images/**", "/css/**","/js/**", "/favicon.ico").permitAll()
