@@ -2,6 +2,7 @@ package com.simplecoding.chargerreservation.charger.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.simplecoding.chargerreservation.charger.entity.ChargerEntity;
+import com.simplecoding.chargerreservation.station.entity.StationEntity;
 import lombok.*;
 
 import java.util.Map;
@@ -62,10 +63,15 @@ public class ChargerDto {
     private String chargerTypeNm;
     private boolean isFast;
 
+    private String chargerName;
+
+    private String address;
+
+
     /**
      * Entity -> DTO 변환
      */
-    public static ChargerDto fromEntity(ChargerEntity entity) {
+    public static ChargerDto fromEntity(ChargerEntity entity, StationEntity station) {
         if (entity == null) return null;
 
         String typeCode = entity.getChargerType();
@@ -87,6 +93,24 @@ public class ChargerDto {
                 .nowTsdt(entity.getNowTsdt())
                 .isFast(fast)
                 .chargerTypeNm(fast ? "급속" : "완속")
+                .build();
+    }
+
+    public static ChargerDto fromEntityWithStation(ChargerEntity entity, StationEntity station) {
+        if (entity == null) return null;
+        String typeCode = entity.getChargerType();
+        boolean fast = FAST_TYPES.contains(typeCode);
+
+        return ChargerDto.builder()
+                .statId(entity.getStatId())
+                .chargerId(entity.getChargerId())
+                .chargerType(typeCode)
+                .stat(entity.getStat())
+                .statNm(STAT_LABELS.getOrDefault(entity.getStat(), "정보없음"))
+                .isFast(fast)
+                .chargerTypeNm(fast ? "급속" : "완속")
+                .chargerName(station.getStatNm() + " · " + (fast ? "급속 충전기" : "완속 충전기"))
+                .address(station.getAddr())
                 .build();
     }
 }

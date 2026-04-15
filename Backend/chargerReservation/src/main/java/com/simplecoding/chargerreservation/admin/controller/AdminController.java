@@ -2,6 +2,7 @@ package com.simplecoding.chargerreservation.admin.controller;
 
 import com.simplecoding.chargerreservation.admin.dto.AdminChargerDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminInquiryDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminNoticeDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminPenaltyDto;
@@ -121,14 +122,12 @@ public class AdminController {
     }
 
     // ── 충전소 전체 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ────────────────
-    // GET /api/admin/stations
     @GetMapping("/stations")
     public ResponseEntity<List<AdminStationDto>> getStationList() {
         return ResponseEntity.ok(adminService.getStationList());
     }
 
     // ── 충전기 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
-    // GET /api/admin/chargers?statId=충전소ID (statId 없으면 전체 조회)
     @GetMapping("/chargers")
     public ResponseEntity<List<AdminChargerDto>> getChargerList(
             @RequestParam(required = false) String statId) {
@@ -136,12 +135,27 @@ public class AdminController {
     }
 
     // ── 충전기 상태 변경 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
-    // PATCH /api/admin/chargers/{statId}/{chargerId}?newStat=4
     @PatchMapping("/chargers/{statId}/{chargerId}")
     public ResponseEntity<AdminChargerDto> updateChargerStat(
             @PathVariable String statId,
             @PathVariable String chargerId,
             @RequestParam String newStat) {
         return ResponseEntity.ok(adminService.updateChargerStat(statId, chargerId, newStat));
+    }
+
+    // ── 문의 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────
+    // GET /api/admin/inquiries
+    @GetMapping("/inquiries")
+    public ResponseEntity<List<AdminInquiryDto>> getInquiryList() {
+        return ResponseEntity.ok(adminService.getInquiryList());
+    }
+
+    // ── 문의 답변 등록 (SUPER / ALL / INQUIRY 파트만 가능) ───────────────────────
+    // POST /api/admin/inquiries/{inquiryId}/answer
+    @PostMapping("/inquiries/{inquiryId}/answer")
+    public ResponseEntity<AdminInquiryDto> answerInquiry(
+            @PathVariable Long inquiryId,
+            @RequestBody AdminInquiryDto dto) {
+        return ResponseEntity.ok(adminService.answerInquiry(inquiryId, dto));
     }
 }

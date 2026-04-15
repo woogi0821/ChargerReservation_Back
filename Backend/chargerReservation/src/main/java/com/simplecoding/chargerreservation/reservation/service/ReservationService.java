@@ -1,5 +1,8 @@
 package com.simplecoding.chargerreservation.reservation.service;
 
+import com.simplecoding.chargerreservation.common.SmsService;
+import com.simplecoding.chargerreservation.member.entity.Member;
+import com.simplecoding.chargerreservation.member.repository.MemberRepository;
 import com.simplecoding.chargerreservation.reservation.dto.ReservationDto;
 import com.simplecoding.chargerreservation.reservation.entity.Reservation;
 import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
@@ -25,6 +28,8 @@ public class ReservationService {
 
     private final ReservationRepository reservationRepository;
     private final ChargerSocketController chargerSocketController;
+    private final MemberRepository memberRepository;
+    private final SmsService smsService;
 
     @Transactional
     public ReservationDto.Response createReservation(Long memberId, ReservationDto.Request req) {
@@ -58,6 +63,22 @@ public class ReservationService {
 
         Reservation savedReservation = reservationRepository.save(reservation);
         chargerSocketController.pushStatus(req.getChargerId(),"RESERVED");
+
+        try {
+            Member member = memberRepository.findById(memberId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다."));
+            smsService.sendPinMessage(
+                    member.getPhone(),
+                    member.getName(),
+                    generatedPin,
+                    savedReservation.getStartTime(),
+                    savedReservation.getEndTime()
+            );
+            log.info("PIN SMS 발송 완료 - 회원 : {}", member.getName());
+        } catch (Exception e) {
+            log.warn("PIN SMS 발송 실패 (예약 ID : {}) : {}", savedReservation.getId(), e.getMessage());
+        }
 
         return ReservationDto.Response.builder()
                 .id(savedReservation.getId())
@@ -115,6 +136,37 @@ public class ReservationService {
         List<Reservation> noShows = reservationRepository
                 .findByStatusAndStartTimeBefore("RESERVED", graceDeadline);
         noShows.forEach(r -> r.changeStatus("NO_SHOW"));
+    }
+
+    @Scheduled(fixedDelay =  60000)
+    @Transactional
+    public void processExpiredCharging(){
+        LocalDateTime now = LocalDateTime.now();
+        List<Reservation> expired = reservationRepository
+                .findByStatusAndEndTimeBefore("CHARGING", now);
+        expired.forEach(r -> {r.endCharging("DONE",now);
+        chargerSocketController.pushStatus(r.getChargerId(),"DONE");
+        log.info("충전 시간 초과 자동 종료 - 충전기 : {}, 예약ID : {}",r.getChargerId(), r.getId());}
+        );
+    }
+
+    public ReservationDto.Response getReservation(Long reservationId, Long memberId) {
+        Reservation r = reservationRepository
+                .findByIdAndMemberId(reservationId, memberId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "예약을 찾을 수 없거나 본인의 예약이 아닙니다."));
+
+        return ReservationDto.Response.builder()
+                .id(r.getId())
+                .chargerId(r.getChargerId())
+                .carNumber(r.getCarNumber())
+                .reservationPin(r.getReservationPin())
+                .startTime(r.getStartTime())
+                .endTime(r.getEndTime())
+                .status(r.getStatus())
+                .actualEndTime(r.getActualEndTime())
+                .isAlertSent(r.getIsAlertSent())
+                .build();
     }
     @Transactional(readOnly = true)
     public List<ReservationDto.Response> getAllReservations() {

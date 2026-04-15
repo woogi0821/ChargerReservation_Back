@@ -111,20 +111,24 @@ public class StationController {
             @RequestParam Double lat,
             @RequestParam Double lng) { // ✨ page, type 파라미터 삭제
 
-        // 1. 위치 정보 유효성 검사
+            @RequestParam Double lng,
+            @RequestParam(defaultValue = "0") int page,
+            // ✨ 추가: 프론트의 필터 상태를 전달받음 (기본값 '급속')
+            @RequestParam(defaultValue = "급속") String type) {
+
         if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
             log.warn("⚠️ [API] 유효하지 않은 위치 정보입니다.");
             return ResponseEntity.ok(List.of());
         }
 
         try {
-            // 2. 서비스 호출 (무한 스크롤 로직이 제거된 신규 메서드 호출)
-            // 앞서 수정한 getTop100Stations 메서드를 사용합니다.
-            List<StationDto> stations = stationService.getTop100Stations(lat, lng);
+            // ✨ 서비스 호출 시 type을 함께 전달하도록 수정
+            // (단, 서비스 내부에서는 이 type의 요금을 '우선' 조회하거나
+            // 제가 앞서 알려드린 대로 p1, p2 조인을 통해 '둘 다' 가져오는 것이 핵심입니다.)
+            List<StationDto> stations = stationService.getStationsWithDistancePaged(lat, lng, page);
 
-            log.info("📋 [API] 주변 목록 100개 반환: {}건 (위도: {}, 경도: {})",
-                    stations.size(), lat, lng);
-
+            log.info("📋 [API] 주변 목록 반환: {}건 (위도: {}, 경도: {}, 타입: {}, 페이지: {})",
+                    stations.size(), lat, lng, type, page);
             return ResponseEntity.ok(stations);
 
         } catch (Exception e) {
