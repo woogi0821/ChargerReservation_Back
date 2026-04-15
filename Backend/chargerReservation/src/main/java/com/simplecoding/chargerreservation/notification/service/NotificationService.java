@@ -22,7 +22,7 @@ public class NotificationService {
 
     // 공통 알림 생성 메서드
     @Transactional
-    public void createNotification(Member member, String title, String message, NotiType type, String url) {
+    public void createNotification(Member member, String title, String message, NotiType type, String url) { // 알림을 db에 저장
         Notification notification = new Notification();
         notification.setMember(member);
         notification.setTitle(title);
@@ -36,10 +36,10 @@ public class NotificationService {
     }
 
     // 1. 특정 사용자의 알림 목록 조회 (최신순)
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true) // 이 메서드가 끝날 때 변경사항을 자동으로 반영
     public List<NotificationResponseDto> getMyNotifications(String email) {
         return notificationRepository.findByMemberEmailOrderByCreatedAtDesc(email)
-                .stream().map(noti -> NotificationResponseDto.builder()
+                .stream().map(noti -> NotificationResponseDto.builder() // db에서 가져온 엔티티를 화면 전달용인 dto로 하나하나 변환하는 과정
                         .notiId(noti.getNotiId())
                         .title(noti.getTitle())
                         .message(noti.getMessage())
@@ -47,7 +47,7 @@ public class NotificationService {
                         .targetUrl(noti.getTargetUrl())
                         .isRead(noti.getIsRead())
                         .createdAt(noti.getCreatedAt().toString())
-                        .build()
+                        .build()  // 생성자보다 안전하고 가독성좋게 데이터를 dto에 담아줌
                 ).collect(Collectors.toList());
     }
 

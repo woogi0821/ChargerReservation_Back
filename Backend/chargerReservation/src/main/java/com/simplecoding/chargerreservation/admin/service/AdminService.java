@@ -2,6 +2,7 @@ package com.simplecoding.chargerreservation.admin.service;
 
 import com.simplecoding.chargerreservation.admin.dto.AdminChargerDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminInquiryDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminNoticeDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminPenaltyDto;
@@ -13,6 +14,8 @@ import com.simplecoding.chargerreservation.charger.entity.ChargerEntity;
 import com.simplecoding.chargerreservation.charger.entity.ChargerId;
 import com.simplecoding.chargerreservation.charger.repository.ChargerRepository;
 import com.simplecoding.chargerreservation.common.SecurityUtil;
+import com.simplecoding.chargerreservation.inquiry.entity.Inquiry;
+import com.simplecoding.chargerreservation.inquiry.repository.InquiryRepository;
 import com.simplecoding.chargerreservation.member.entity.Member;
 import com.simplecoding.chargerreservation.member.repository.MemberRepository;
 import com.simplecoding.chargerreservation.notice.entity.NoticeEntity;
@@ -45,6 +48,7 @@ public class AdminService {
     private final NoticeRepository noticeRepository;
     private final StationRepository stationRepository;
     private final ChargerRepository chargerRepository;
+    private final InquiryRepository inquiryRepository;
 
     // ── 요청자 관리자 조회 헬퍼 ─────────────────────────────────────────────────
     private Admin getRequesterAdmin() {
@@ -295,7 +299,6 @@ public class AdminService {
         if (!isSuperRole && !isChargerPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전소 조회 권한이 없습니다");
         }
-        // 상위 100건만 반환
         return stationRepository.findAll(
                         org.springframework.data.domain.PageRequest.of(0, 100))
                 .stream()
@@ -313,16 +316,12 @@ public class AdminService {
         if (!isSuperRole && !isChargerPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전기 조회 권한이 없습니다");
         }
-
-        // statId 있으면 특정 충전소 충전기만 조회
-        // statId 없으면 상위 100건만 조회
         if (statId != null && !statId.isEmpty()) {
             return chargerRepository.findByStatId(statId)
                     .stream()
                     .map(AdminChargerDto::from)
                     .collect(Collectors.toList());
         }
-
         return chargerRepository.findAll(
                         org.springframework.data.domain.PageRequest.of(0, 100))
                 .stream()
@@ -342,7 +341,44 @@ public class AdminService {
         ChargerId id = new ChargerId(statId, chargerId);
         ChargerEntity charger = chargerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("충전기를 찾을 수 없습니다"));
-        charger.setStat(newStat);
+        charger.setStat(newStat.trim());
         return AdminChargerDto.from(chargerRepository.save(charger));
+    }
+
+    // ── 문의 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────
+    @Transactional(readOnly = true)
+    public List<AdminInquiryDto> getInquiryList() {
+        Admin requester = getRequesterAdmin();
+        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
+        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
+                || requester.getAdminPart().equals("ALL");
+        if (!isSuperRole && !isInquiryPart) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "문의 조회 권한이 없습니다");
+        }
+        return inquiryRepository.findAll()
+                .stream()
+                .map(AdminInquiryDto::from)
+                .collect(Collectors.toList());
+    }
+
+    // ── 문의 답변 등록 (SUPER / ALL / INQUIRY 파트만 가능) ───────────────────────
+    public AdminInquiryDto answerInquiry(Long inquiryId, AdminInquiryDto dto) {
+        Admin requester = getRequesterAdmin();
+        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
+        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
+                || requester.getAdminPart().equals("ALL");
+        if (!isSuperRole && !isInquiryPart) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "문의 답변 권한이 없습니다");
+        }
+        Inquiry inquiry = inquiryRepository.findById(inquiryId)
+                .orElseThrow(() -> new RuntimeException("문의를 찾을 수 없습니다"));
+        if (inquiry.getStatus().equals("ANSWERED")) {
+            throw new RuntimeException("이미 답변된 문의입니다");
+        }
+        inquiry.setAnswerContent(dto.getAnswerContent());
+        inquiry.setAnswerAt(LocalDateTime.now());
+        inquiry.setAdminId(requester.getAdminId());
+        inquiry.setStatus("ANSWERED");
+        return AdminInquiryDto.from(inquiryRepository.save(inquiry));
     }
 }

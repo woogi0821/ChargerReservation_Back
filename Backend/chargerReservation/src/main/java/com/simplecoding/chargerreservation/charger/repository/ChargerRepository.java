@@ -1,5 +1,6 @@
 package com.simplecoding.chargerreservation.charger.repository;
 
+import com.simplecoding.chargerreservation.charger.dto.ChargerDto;
 import com.simplecoding.chargerreservation.charger.entity.ChargerEntity;
 import com.simplecoding.chargerreservation.charger.entity.ChargerId;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -55,4 +56,9 @@ public interface ChargerRepository extends JpaRepository<ChargerEntity, ChargerI
             "  VALUES (:statId, :chargerId, :stat, :statUpdDt, CURRENT_TIMESTAMP)", nativeQuery = true)
     void mergeChargerStatus(@Param("statId") String statId, @Param("chargerId") String chargerId,
                             @Param("stat") String stat, @Param("statUpdDt") String statUpdDt);
+
+    @Query("""
+    SELECT c FROM ChargerEntity c JOIN FETCH c.station WHERE c.statId = :statId
+""")
+    List<ChargerEntity> findByStatIdWithStation(@Param("statId") String statId);
 }

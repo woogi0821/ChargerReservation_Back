@@ -50,13 +50,18 @@ public class StationController {
      * [API] 충전소 통합 검색 (이름, 주소, 운영사 키워드)
      * GET /api/station/search?keyword=강남
      */
+// StationController.java
+
     @GetMapping("/search")
-    public ResponseEntity<List<StationDto>> searchStations(@RequestParam(value = "keyword", required = false) String keyword) {
-        log.info("▶ [API 호출] 충전소 검색 - 키워드: [{}]", keyword);
-// 서비스 호출
-        List<StationDto> results = stationService.searchStations(keyword);
-        log.info("◀ [API 응답] 검색 완료 - 결과: {}건", results.size());
-// 200 OK 상태코드와 함께 결과 반환
+    public ResponseEntity<List<StationDto>> searchStations(
+            @RequestParam String keyword,
+            @RequestParam Double lat,  // 💡 내 현재 위도 추가
+            @RequestParam Double lng) { // 💡 내 현재 경도 추가
+
+        log.info("▶ [검색] 키워드: {}, 내 위치: ({}, {})", keyword, lat, lng);
+
+        List<StationDto> results = stationService.searchStationsNearby(keyword, lat, lng);
+
         return ResponseEntity.ok(results);
     }
 
@@ -101,8 +106,11 @@ public class StationController {
      * GET /api/stations/around?lat=35.1061&lng=128.9665&page=0
      */
     @GetMapping("/around")
+
     public ResponseEntity<List<StationDto>> getAroundStations(
+
             @RequestParam Double lat,
+
             @RequestParam Double lng,
             @RequestParam(defaultValue = "0") int page,
             // ✨ 추가: 프론트의 필터 상태를 전달받음 (기본값 '급속')
@@ -111,7 +119,10 @@ public class StationController {
         if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
             log.warn("⚠️ [API] 유효하지 않은 위치 정보입니다.");
             return ResponseEntity.ok(List.of());
+
         }
+
+
 
         try {
             // ✨ 서비스 호출 시 type을 함께 전달하도록 수정
@@ -123,9 +134,13 @@ public class StationController {
                     stations.size(), lat, lng, type, page);
             return ResponseEntity.ok(stations);
 
+
+
         } catch (Exception e) {
+
             log.error("❌ [API] 목록 조회 중 서버 오류 발생: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+
     }
 }

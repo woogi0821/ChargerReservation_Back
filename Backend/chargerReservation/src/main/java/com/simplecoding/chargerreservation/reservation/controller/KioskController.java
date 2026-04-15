@@ -5,10 +5,7 @@ import com.simplecoding.chargerreservation.reservation.service.KioskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/kiosk")
@@ -35,5 +32,11 @@ public class KioskController {
             @RequestBody @Valid KioskDto.StopRequest req) {
         kioskService.stopCharging(req);
         return ResponseEntity.ok("충전이 조기 종료되었습니다.");
+    }
+
+    @GetMapping("/status/{chargerId}")
+    public ResponseEntity<KioskDto.StatusResponse> getChargerStatus(
+            @PathVariable String chargerId) {
+        return ResponseEntity.ok(kioskService.getChargerStatus(chargerId));
     }
 }
