@@ -1,6 +1,7 @@
 package com.simplecoding.chargerreservation.admin.service;
 
 import com.simplecoding.chargerreservation.admin.dto.AdminChargerDto;
+import com.simplecoding.chargerreservation.admin.dto.AdminDashboardDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminInquiryDto;
 import com.simplecoding.chargerreservation.admin.dto.AdminMemberDto;
@@ -289,15 +290,24 @@ public class AdminService {
         noticeRepository.save(notice);
     }
 
-    // ── 충전소 전체 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ────────────────
+    // ── 충전소 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
+    // keyword 있으면 검색 결과 반환 (최대 50건)
+    // keyword 없으면 상위 100건 반환
     @Transactional(readOnly = true)
-    public List<AdminStationDto> getStationList() {
+    public List<AdminStationDto> getStationList(String keyword) {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole    = requester.getAdminRole().equals("SUPER");
-        boolean isChargerPart  = requester.getAdminPart().equals("CHARGER")
+        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
+        boolean isChargerPart = requester.getAdminPart().equals("CHARGER")
                 || requester.getAdminPart().equals("ALL");
         if (!isSuperRole && !isChargerPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전소 조회 권한이 없습니다");
+        }
+        if (keyword != null && !keyword.isEmpty()) {
+            return stationRepository.findByIntegratedSearch(keyword)
+                    .stream()
+                    .limit(50)
+                    .map(AdminStationDto::from)
+                    .collect(Collectors.toList());
         }
         return stationRepository.findAll(
                         org.springframework.data.domain.PageRequest.of(0, 100))
@@ -310,8 +320,8 @@ public class AdminService {
     @Transactional(readOnly = true)
     public List<AdminChargerDto> getChargerList(String statId) {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole    = requester.getAdminRole().equals("SUPER");
-        boolean isChargerPart  = requester.getAdminPart().equals("CHARGER")
+        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
+        boolean isChargerPart = requester.getAdminPart().equals("CHARGER")
                 || requester.getAdminPart().equals("ALL");
         if (!isSuperRole && !isChargerPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전기 조회 권한이 없습니다");
@@ -332,8 +342,8 @@ public class AdminService {
     // ── 충전기 상태 변경 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
     public AdminChargerDto updateChargerStat(String statId, String chargerId, String newStat) {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole    = requester.getAdminRole().equals("SUPER");
-        boolean isChargerPart  = requester.getAdminPart().equals("CHARGER")
+        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
+        boolean isChargerPart = requester.getAdminPart().equals("CHARGER")
                 || requester.getAdminPart().equals("ALL");
         if (!isSuperRole && !isChargerPart) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전기 상태 변경 권한이 없습니다");
@@ -380,5 +390,31 @@ public class AdminService {
         inquiry.setAdminId(requester.getAdminId());
         inquiry.setStatus("ANSWERED");
         return AdminInquiryDto.from(inquiryRepository.save(inquiry));
+    }
+
+    // ── 대시보드 통계 조회 ────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public AdminDashboardDto getDashboardStats() {
+        long totalMembers = memberRepository.count();
+        LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+        long todayReservations = reservationRepository
+                .findByStartTimeBetween(startOfDay, endOfDay).size();
+        long totalStations = stationRepository.count();
+        long brokenChargers = chargerRepository.findAll()
+                .stream()
+                .filter(c -> {
+                    String stat = c.getStat() != null ? c.getStat().trim() : "";
+                    return stat.equals("4") || stat.equals("5");
+                })
+                .count();
+        long pendingInquiries = inquiryRepository.findByStatus("PENDING").size();
+        return new AdminDashboardDto(
+                totalMembers,
+                todayReservations,
+                totalStations,
+                brokenChargers,
+                pendingInquiries
+        );
     }
 }

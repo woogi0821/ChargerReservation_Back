@@ -145,4 +145,12 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
     List<StationEntity> findByZcode(String zcode);
     List<StationEntity> findByBnmContaining(String bnm);
     Optional<StationEntity> findByLatAndLng(Double lat, Double lng);
+
+    // 어드민용 키워드 검색 (충전소명 / 주소 / 운영기관)
+    @Query("SELECT s FROM StationEntity s " +
+            "WHERE s.statNm LIKE %:keyword% " +
+            "OR s.addr LIKE %:keyword% " +
+            "OR s.bnm LIKE %:keyword% " +
+            "ORDER BY s.statNm ASC")
+    List<StationEntity> findByIntegratedSearch(@Param("keyword") String keyword);
 }

@@ -74,4 +74,8 @@ boolean isChargerCurrentlyOccupied(
 
     Optional<Reservation> findTopByChargerIdAndStatusIn(String chargerId, List<String> statues);
 
+    // 오늘 예약 건수 조회
+    List<Reservation> findByStartTimeBetween(
+            LocalDateTime start, LocalDateTime end);
+
 }
