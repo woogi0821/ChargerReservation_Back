@@ -109,8 +109,6 @@ public class StationController {
     @GetMapping("/around")
     public ResponseEntity<List<StationDto>> getAroundStations(
             @RequestParam Double lat,
-            @RequestParam Double lng) { // ✨ page, type 파라미터 삭제
-
             @RequestParam Double lng,
             @RequestParam(defaultValue = "0") int page,
             // ✨ 추가: 프론트의 필터 상태를 전달받음 (기본값 '급속')

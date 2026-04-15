@@ -81,7 +81,7 @@ public class StationService {
      * - 페이징을 제거하고 1.5km 이내의 가까운 충전소 100개를 한 번에 가져옵니다.
      */
     @Transactional(readOnly = true)
-    public List<StationDto> getTop100Stations(Double lat, Double lng) {
+    public List<StationDto> getStationsWithDistancePaged(Double lat, Double lng, int page) {
         // 1. 환경 설정
         int year = 2026;
         String season = "봄가을";
@@ -89,8 +89,8 @@ public class StationService {
         // 2. Repository 호출
         // [중요] Repository에서 p1.UNIT_PRICE as currentPrice, p2.UNIT_PRICE as slowPrice를 가져와야 함
         // 기존에 넘기던 'type' 파라미터는 쿼리 내부에서 '급속'/'완속'으로 하드코딩했으므로 제거
-        List<MarkerProjection> list = stationRepository.findStationsWithinRadiusWithPaging(
-                lat, lng, 1.5, year, season, page * 20, 20);
+        List<MarkerProjection> list = stationRepository.findTop100StationsWithinRadius(
+                lat, lng, 1.5, year, season);
 
         if (list.isEmpty()) return Collections.emptyList();
 
