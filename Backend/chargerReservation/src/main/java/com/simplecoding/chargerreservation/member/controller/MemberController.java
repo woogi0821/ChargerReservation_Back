@@ -14,10 +14,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -38,6 +35,13 @@ public class MemberController {
         memberService.join(memberDto);
 
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/check-id")
+    public ResponseEntity<Boolean> checkId(@RequestParam("loginId") String loginId) {
+        boolean isDuplicate = memberService.checkIdDuplicate(loginId);
+
+        return ResponseEntity.ok(!isDuplicate);
     }
 
     // 로그인 (성공 시 AT, RT 발급)

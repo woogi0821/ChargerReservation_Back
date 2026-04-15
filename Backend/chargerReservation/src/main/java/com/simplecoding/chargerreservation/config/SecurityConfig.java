@@ -45,7 +45,7 @@ public class SecurityConfig {
             // 재발급 경로 허용: "/member/refresh"를 추가해줘야 리액트가 AT 만료 시 RT를 들고 조용히 접근할 수 있음 -> 추가 예정
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/email/**").permitAll()
+                .requestMatchers("/api/member/join", "/api/member/check-id","/api/email/**").permitAll()
                 .requestMatchers("/api/stations/**").permitAll()
                 .requestMatchers("/api/member/login", "/api/member/join", "/api/member/refresh").permitAll()
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()

@@ -120,7 +120,7 @@ public class MemberService {
         memberToken.setRefreshToken(newRt);
         memberToken.setExpiresAt(LocalDateTime.now().plusDays(7)); // 만료일 갱신
 
-        // 새로운 AccessToken만 만들어서 반환(로그인 상태 연장)
+        // 새로운 AccessToken만 만들어서 반환(로그인 상태 연장)type = "button",
         return TokenDto.builder()
             .grantType("Bearer")
             .accessToken(newAt)
@@ -156,6 +156,12 @@ public class MemberService {
             throw new IllegalStateException("이미 존재하는 아이디입니다.");
         }
     }
+
+    // 아이디 존재 여부 확인 (중복 확인 버튼용)
+    public boolean checkIdDuplicate(String loginId) {
+        return memberRepository.findByLoginId(loginId).isPresent();
+    }
+
     // 이메일 중복 검증 함수
     private void validateDuplicateEmail(String email) {
         if (memberRepository.findByEmail(email).isPresent()) {
