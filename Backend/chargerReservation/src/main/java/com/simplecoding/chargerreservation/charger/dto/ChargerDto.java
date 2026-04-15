@@ -104,8 +104,9 @@ public class ChargerDto {
         return ChargerDto.builder()
                 .statId(entity.getStatId())
                 .chargerId(entity.getChargerId())
-                .chargerType(typeCode)
+                .chargerType(fast ? "RAPID" : "SLOW")
                 .stat(entity.getStat())
+                .status(mapStatusEnum(entity.getStat()))
                 .statNm(STAT_LABELS.getOrDefault(entity.getStat(), "정보없음"))
                 .isFast(fast)
                 .chargerTypeNm(fast ? "급속" : "완속")
@@ -113,4 +114,14 @@ public class ChargerDto {
                 .address(station.getAddr())
                 .build();
     }
+
+    private static String mapStatusEnum(String stat) {
+        return switch (stat) {
+            case "2" -> "AVAILABLE";
+            case "3" -> "CHARGING";
+            default ->  "BROKEN";
+        };
+    }
+
+    private String status;
 }
