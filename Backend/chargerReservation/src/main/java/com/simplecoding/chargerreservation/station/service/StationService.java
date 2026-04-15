@@ -77,130 +77,70 @@ public class StationService {
     }
 
     /**
-     * [기능] 주변 충전소 목록 조회 (상세 정보 포함 리스트)
-     * - 마커 조회와 비슷하지만, 충전소 이름, 주소 등 상세 정보를 담은 StationDto를 반환합니다.
-     * - 무한 스크롤이나 목록 페이징 UI에 사용됩니다.
+     * [기능] 주변 충전소 100개 통합 조회 (상세 정보 포함)
+     * - 페이징을 제거하고 1.5km 이내의 가까운 충전소 100개를 한 번에 가져옵니다.
      */
     @Transactional(readOnly = true)
-
-    public List<StationDto> getStationsWithDistancePaged(Double lat, Double lng, int page) {
-
-// 1. 환경 설정 (계절 및 연도)
-
+    public List<StationDto> getTop100Stations(Double lat, Double lng) {
+        // 1. 환경 설정
         int year = 2026;
-
         String season = "봄가을";
 
-
-
-// 2. Repository 호출
-
-// [중요] Repository에서 p1.UNIT_PRICE as currentPrice, p2.UNIT_PRICE as slowPrice를 가져와야 함
-
-// 기존에 넘기던 'type' 파라미터는 쿼리 내부에서 '급속'/'완속'으로 하드코딩했으므로 제거
-
-        List<MarkerProjection> list = stationRepository.findStationsWithinRadiusWithPaging(
-
-                lat, lng, 1.5, year, season, page * 20, 20);
-
-
+        // 2. Repository 호출 (페이징 파라미터 삭제)
+        // SQL 쿼리명이 findTop100StationsWithinRadius로 바뀌었다고 가정합니다.
+        List<MarkerProjection> list = stationRepository.findTop100StationsWithinRadius(
+                lat, lng, 1.5, year, season);
 
         if (list.isEmpty()) return Collections.emptyList();
 
-
-
-// 💡 성능 최적화 (N+1 문제 해결): 현재 페이지에 해당하는 모든 충전소 ID 추출
-
-        List<String> statIds = list.stream().map(MarkerProjection::getStatId).collect(Collectors.toList());
-
-
-
-// 해당 충전소들의 모든 충전기 정보를 한 번의 쿼리로 가져옴
+        // 💡 N+1 문제 해결: 100개 충전소의 충전기 정보를 한 번에 조회
+        List<String> statIds = list.stream()
+                .map(MarkerProjection::getStatId)
+                .collect(Collectors.toList());
 
         List<ChargerEntity> allChargers = chargerRepository.findByStatIdIn(statIds);
-
-
-
-// 충전소 ID별로 그룹화 (메모리 내에서 매핑)
-
         Map<String, List<ChargerEntity>> chargerMap = allChargers.stream()
-
                 .collect(Collectors.groupingBy(ChargerEntity::getStatId));
 
-
-
         Set<String> fastTypes = Set.of("01", "03", "04", "05", "06", "08");
-
         Set<String> brokenStats = Set.of("1", "4", "5");
 
-
-
         return list.stream()
-
                 .map(p -> {
-
-// 1. 기본 정보 매핑
-
-                    StationDto dto = mapStruct.toDto(p);
-
+                    // 1. 기본 정보 매핑
+                    StationDto dto = new StationDto(); // mapStruct 대신 직접 매핑 예시
                     dto.setStatId(p.getStatId());
-
                     dto.setStatNm(p.getStatNm());
-
                     dto.setAddr(p.getAddr());
-
                     dto.setDistance(p.getDistance());
-
                     dto.setBnm(p.getBnm());
+                    dto.setLimitYn(p.getLimitYn());
+                    dto.setLimitDetail(p.getLimitDetail());
+                    dto.setParkingFree(p.getParkingFree());
 
+                    // 요금 정보
+                    dto.setCurrentPrice(p.getCurrentPrice()); // 급속
+                    dto.setSlowPrice(p.getSlowPrice());       // 완속
 
-
-// ✨ [핵심 수정] 급속과 완속 요금을 각각 세팅
-
-// MarkerProjection 인터페이스에 getSlowPrice()가 추가되어 있어야 함
-
-                    dto.setCurrentPrice(p.getCurrentPrice()); // 급속 요금
-
-                    dto.setSlowPrice(p.getSlowPrice()); // 완속 요금 추가
-
-
-
-// 2. 충전기 상세 현황 (미리 그룹화된 맵에서 꺼내기 - DB 호출 없음)
-
+                    // 2. 충전기 상세 현황
                     List<ChargerEntity> chargers = chargerMap.getOrDefault(p.getStatId(), Collections.emptyList());
 
-
-
                     int total = chargers.size();
-
                     int available = (int) chargers.stream().filter(c -> "2".equals(c.getStat())).count();
-
                     int broken = (int) chargers.stream().filter(c -> brokenStats.contains(c.getStat())).count();
 
-
-
+                    // DTO의 상태 정보 업데이트 (available/total/broken)
                     dto.setStatusInfo(available, total, broken);
 
-
-
-// 3. 급속/완속 상세 텍스트 세팅
-
+                    // 3. 급속/완속 상세 텍스트 및 필터용 데이터 세팅
                     Map<Boolean, List<ChargerEntity>> split = chargers.stream()
-
                             .collect(Collectors.partitioningBy(c -> fastTypes.contains(c.getChargerType())));
 
-
-
                     processTypeDetail(dto, "급속", split.get(true), brokenStats);
-
                     processTypeDetail(dto, "완속", split.get(false), brokenStats);
 
-
-
                     return dto;
-
                 }).collect(Collectors.toList());
-
     }
 
     /**
@@ -322,15 +262,39 @@ public class StationService {
     public List<StationDto> searchStationsNearby(String keyword, Double lat, Double lng) {
         if (keyword == null || keyword.trim().isEmpty()) return List.of();
 
-        // 1. 반경 1.5km + 키워드 검색 실행
+        // 1. 키워드 검색 결과 (Projection)
         List<MarkerProjection> results = stationRepository.findNearbyByKeyword(keyword.trim(), lat, lng);
+        if (results.isEmpty()) return Collections.emptyList();
 
-        // 2. Projection -> DTO 변환 (거리 정보 포함)
+        // 2. 실시간 상태 조회를 위한 ID 추출 및 충전기 데이터 일괄 조회 (N+1 방지)
+        List<String> statIds = results.stream().map(MarkerProjection::getStatId).collect(Collectors.toList());
+        List<ChargerEntity> allChargers = chargerRepository.findByStatIdIn(statIds);
+        Map<String, List<ChargerEntity>> chargerMap = allChargers.stream().collect(Collectors.groupingBy(ChargerEntity::getStatId));
+
+        Set<String> fastTypes = Set.of("01", "03", "04", "05", "06", "08");
+        Set<String> brokenStats = Set.of("1", "4", "5");
+
+        // 3. 변환 및 가공
         return results.stream()
                 .map(p -> {
                     StationDto dto = mapStruct.toDto(p);
                     dto.setDistance(p.getDistance());
-                    // 필요 시 추가적인 상태 정보(availableCount 등) 세팅 로직 호출
+
+                    List<ChargerEntity> chargers = chargerMap.getOrDefault(p.getStatId(), Collections.emptyList());
+
+                    // 🔥 마커 색상 계산 (이걸 안 하면 회색 마커)
+                    int total = chargers.size();
+                    int available = (int) chargers.stream().filter(c -> "2".equals(c.getStat())).count();
+                    int broken = (int) chargers.stream().filter(c -> brokenStats.contains(c.getStat())).count();
+                    dto.setStatusInfo(available, total, broken);
+
+                    // 🔥 급속/완속 현황 텍스트 생성 (이걸 안 하면 '정보없음' 표시)
+                    Map<Boolean, List<ChargerEntity>> split = chargers.stream()
+                            .collect(Collectors.partitioningBy(c -> fastTypes.contains(c.getChargerType())));
+
+                    processTypeDetail(dto, "급속", split.get(true), brokenStats);
+                    processTypeDetail(dto, "완속", split.get(false), brokenStats);
+
                     return dto;
                 })
                 .collect(Collectors.toList());
