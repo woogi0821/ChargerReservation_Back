@@ -167,6 +167,7 @@ public class ReservationService {
                 .actualEndTime(r.getActualEndTime())
                 .isAlertSent(r.getIsAlertSent())
                 .build();
+    }
     @Transactional(readOnly = true)
     public List<ReservationDto.Response> getAllReservations() {
         // 1. 모든 예약 데이터를 가져옴 (필요 시 최신순 정렬)

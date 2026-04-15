@@ -55,10 +55,11 @@ public class ReservationController {
             @PathVariable Long id,
             @RequestHeader("X-MemberId") Long memberId) {
         return ResponseEntity.ok(reservationService.getReservation(id, memberId));
-    @GetMapping("/admin/all")
-    public ResponseEntity<List<ReservationDto.Response>> getAllReservationsForAdmin() {
-        log.info("관리자용 전체 예약 목록 조회 요청");
-        // 서비스에 getAllReservations() 기능을 하나 만드셔야 합니다.
-        return ResponseEntity.ok(reservationService.getAllReservations());
     }
+//    @GetMapping("/admin/all")
+//    public ResponseEntity<List<ReservationDto.Response>> getAllReservationsForAdmin() {
+//        log.info("관리자용 전체 예약 목록 조회 요청");
+//        // 서비스에 getAllReservations() 기능을 하나 만드셔야 합니다.
+//        return ResponseEntity.ok(reservationService.gerAll);
+//    }
 }
