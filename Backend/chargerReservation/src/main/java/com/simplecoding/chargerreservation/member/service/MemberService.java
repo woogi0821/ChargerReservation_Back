@@ -33,7 +33,7 @@ public class MemberService {
     private final AdminRepository adminRepository;
 
     /**==========================================
-     * 회원 관리 (회원가입)
+     * 회원 관리 (회원가입, 수정, 탈퇴)
      ========================================== */
     public Long join(MemberDto dto) {
         validateDuplicateMember(dto.getLoginId());
@@ -47,17 +47,43 @@ public class MemberService {
         }
 
         Member member = Member.builder()
-                .loginId(dto.getLoginId())
-                .loginPw(passwordEncoder.encode(dto.getLoginPw()))
-                .email(dto.getEmail())
-                .name(dto.getName())
-                .phone(dto.getPhone())
-                .build();
+            .loginId(dto.getLoginId())
+            .loginPw(passwordEncoder.encode(dto.getLoginPw()))
+            .email(dto.getEmail())
+            .name(dto.getName())
+            .phone(dto.getPhone())
+            .build();
 
+        // 저장 및 인증 데이터 삭제
         Member savedMember = memberRepository.save(member);
         emailVerificationRepository.delete(verification);
 
         return savedMember.getMemberId();
+    }
+
+    // 회원 수정
+    @Transactional
+    public void modifyMember(MemberDto memberDto) {
+        Member member = getCurrentMember();
+
+        member.updateMember(memberDto.getName(), memberDto.getPhone());
+
+        if (memberDto.getLoginPw() != null && !memberDto.getLoginPw().trim().isEmpty()) {
+            String encodedPw = passwordEncoder.encode(memberDto.getLoginPw());
+            member.updatePassword(encodedPw);
+        }
+    }
+
+    // 회원 탈퇴
+    @Transactional
+    public void withdrawMember(String loginId) {
+        Member member = getCurrentMember();
+        member.setStatus("WITHDRAWN");
+
+        // TODO: 예약 관련 테이블 및 데이터 처리 로직 설계 예정
+        memberTokenRepository.deleteByMember(member);
+
+        log.info("회원 탈퇴 처리 완료: {}", loginId);
     }
 
     /**==========================================
@@ -126,6 +152,7 @@ public class MemberService {
         memberToken.setRefreshToken(newRt);
         memberToken.setExpiresAt(LocalDateTime.now().plusDays(7));
 
+        // 새로운 AccessToken만 만들어서 반환(로그인 상태 연장)type = "button",
         return TokenDto.builder()
                 .grantType("Bearer")
                 .accessToken(newAt)
@@ -137,13 +164,15 @@ public class MemberService {
     @Transactional
     public void logout(String loginId) {
         Member member = memberRepository.findByLoginId(loginId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
+            .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
+
         memberTokenRepository.deleteByMember(member);
     }
 
     /**==========================================
      * 공통 모듈
      ==========================================*/
+    // 현재 로그인 한 유저 엔티티 가져오기
     public Member getCurrentMember() {
         String currentId = SecurityUtil.getCurrentLoginId();
         return memberRepository.findByLoginId(currentId)
@@ -156,6 +185,12 @@ public class MemberService {
         }
     }
 
+    // 아이디 존재 여부 확인 (중복 확인 버튼용)
+    public boolean checkIdDuplicate(String loginId) {
+        return memberRepository.findByLoginId(loginId).isPresent();
+    }
+
+    // 이메일 중복 검증 함수
     private void validateDuplicateEmail(String email) {
         if (memberRepository.findByEmail(email).isPresent()) {
             throw new IllegalStateException("이미 가입된 이메일입니다.");
