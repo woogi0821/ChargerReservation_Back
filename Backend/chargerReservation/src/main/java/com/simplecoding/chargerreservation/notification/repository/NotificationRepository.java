@@ -6,7 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-@Repository
+@Repository // DB에 접근하는 통로
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
     // 특정 회원의 알림 목록을 최신순으로 가져오기
     List<Notification> findByMemberEmailOrderByCreatedAtDesc(String email);
