@@ -15,7 +15,7 @@ import java.util.List; // 추가
 import java.util.stream.Collectors; // 추가
 
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor //
 public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final MemberRepository memberRepository; // 👈 1. 여기에 추가하면 빨간 줄이 사라집니다!
