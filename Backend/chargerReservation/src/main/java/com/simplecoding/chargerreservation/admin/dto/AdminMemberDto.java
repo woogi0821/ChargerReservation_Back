@@ -7,8 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-// 어드민 페이지에서 회원 목록 조회 시 사용하는 DTO
-// MemberDto 와 구분하기 위해 AdminMemberDto 로 명명
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -22,6 +20,7 @@ public class AdminMemberDto {
     private String status;
     private Integer penaltyCount;
     private LocalDateTime suspendedUntil;
+    private String memberGrade; // ✅ 추가
 
     // Member Entity → AdminMemberDto 변환
     public static AdminMemberDto from(Member member) {
@@ -33,7 +32,8 @@ public class AdminMemberDto {
                 member.getPhone(),
                 member.getStatus(),
                 member.getPenaltyCount(),
-                member.getSuspendedUntil()
+                member.getSuspendedUntil(),
+                member.getMemberGrade() // ✅ 추가
         );
     }
 }
