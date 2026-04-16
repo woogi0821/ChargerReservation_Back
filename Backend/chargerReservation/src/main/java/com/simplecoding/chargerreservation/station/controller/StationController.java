@@ -102,15 +102,13 @@ public class StationController {
     }
 
     /**
-     * [추가] 1. 내 주변 충전소 리스트 조회 (무한 스크롤용 - 20개씩)
-     * GET /api/stations/around?lat=35.1061&lng=128.9665&page=0
+     * [변경] 주변 충전소 100개 통합 조회 (필터 및 마커 매칭용)
+     * - 더 이상 무한 스크롤을 사용하지 않고 100개를 한 번에 반환합니다.
+     * - GET /api/stations/around?lat=35.1061&lng=128.9665
      */
     @GetMapping("/around")
-
     public ResponseEntity<List<StationDto>> getAroundStations(
-
             @RequestParam Double lat,
-
             @RequestParam Double lng,
             @RequestParam(defaultValue = "0") int page,
             // ✨ 추가: 프론트의 필터 상태를 전달받음 (기본값 '급속')
@@ -119,10 +117,7 @@ public class StationController {
         if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
             log.warn("⚠️ [API] 유효하지 않은 위치 정보입니다.");
             return ResponseEntity.ok(List.of());
-
         }
-
-
 
         try {
             // ✨ 서비스 호출 시 type을 함께 전달하도록 수정
@@ -134,13 +129,9 @@ public class StationController {
                     stations.size(), lat, lng, type, page);
             return ResponseEntity.ok(stations);
 
-
-
         } catch (Exception e) {
-
             log.error("❌ [API] 목록 조회 중 서버 오류 발생: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-
     }
 }

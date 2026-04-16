@@ -81,7 +81,7 @@ public class MemberController {
 
     // 토큰 재발급 (AccessToken 만료 시 리액트에서 호출)
     @PostMapping("/refresh")
-    public ResponseEntity<TokenDto> refresh(@RequestBody String refreshToken) {
+    public ResponseEntity<TokenDto> refresh(@CookieValue("refreshToken") String refreshToken) {
         // 클라이언트가 보낸 RT로 새 AT를 발급
         TokenDto newAccessToken = memberService.refreshAccessToken(refreshToken);
         return ResponseEntity.ok(newAccessToken);

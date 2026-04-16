@@ -52,8 +52,12 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             "    SELECT s.STAT_ID as statId, s.STAT_NM as statNm, s.ADDR as addr, " +
             "           s.BNM as bnm, s.LAT as lat, s.LNG as lng, s.USE_TIME as useTime, " +
             "           s.PARKING_FREE as parkingFree, s.LIMIT_YN as limitYn, s.LIMIT_DETAIL as limitDetail, " +
-            "           p1.UNIT_PRICE as currentPrice, " + // ✨ 급속 요금
-            "           p2.UNIT_PRICE as slowPrice, " +    // ✨ 완속 요금 추가
+            "           p1.UNIT_PRICE as currentPrice, " +
+            "           p2.UNIT_PRICE as slowPrice, " +
+            "           /* ✨ 필터링을 위한 실시간 충전기 상태 추가 */ " +
+            "           (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.STAT = '2') AS availableCount, " +
+            "           (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.CHARGER_TYPE IN ('01','03','04','05','06','08')) AS fastCount, " +
+            "           (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.CHARGER_TYPE IN ('02','07')) AS slowCount, " +
             "           ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
             "               sin(:lat * 3.141592653589793 / 180) * sin(s.LAT * 3.141592653589793 / 180) + " +
             "               cos(:lat * 3.141592653589793 / 180) * cos(s.LAT * 3.141592653589793 / 180) * " +
@@ -61,45 +65,49 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             "           ))), 2) AS distance " +
             "    FROM STATION s " +
             "    LEFT JOIN CHARGER_PRICE p1 ON s.BNM = p1.BNM " +
-            "        AND p1.SPEED_TYPE = '급속' " + // 급속 고정
+            "        AND p1.SPEED_TYPE = '급속' " +
             "        AND p1.APPLY_YEAR = :year AND p1.SEASON = :season " +
             "    LEFT JOIN CHARGER_PRICE p2 ON s.BNM = p2.BNM " +
-            "        AND p2.SPEED_TYPE = '완속' " + // 완속 고정
+            "        AND p2.SPEED_TYPE = '완속' " +
             "        AND p2.APPLY_YEAR = :year AND p2.SEASON = :season " +
             "    WHERE s.LAT IS NOT NULL AND s.LNG IS NOT NULL " +
             ") t " +
             "WHERE t.distance <= :radius " +
             "ORDER BY t.distance ASC " +
-            "OFFSET :offset ROWS FETCH NEXT :size ROWS ONLY", nativeQuery = true)
-    List<MarkerProjection> findStationsWithinRadiusWithPaging(
+            "FETCH NEXT 100 ROWS ONLY", nativeQuery = true) // ✨ 100개 고정
+    List<MarkerProjection> findTop100StationsWithinRadius(
             @Param("lat") Double lat,
             @Param("lng") Double lng,
             @Param("radius") Double radius,
             @Param("year") Integer year,
-            @Param("season") String season,
-            @Param("offset") int offset,
-            @Param("size") int size);
+            @Param("season") String season);
     /**
      * [수정] 내 위치 중심 1.5km 이내 + 키워드 통합 검색
      */
-    @Query(value = "SELECT * FROM (" +
-            "    SELECT s.*, " +
-            "    ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
-            "        sin(:lat * 3.141592653589793 / 180) * sin(s.LAT * 3.141592653589793 / 180) + " +
-            "        cos(:lat * 3.141592653589793 / 180) * cos(s.LAT * 3.141592653589793 / 180) * " +
-            "        cos((s.LNG - :lng) * 3.141592653589793 / 180) " +
-            "    ))), 2) AS distance " +
+// findNearbyByKeyword 메서드를 아래 쿼리로 교체
+    @Query(value = "SELECT t.* FROM (" +
+            "    SELECT s.STAT_ID as statId, s.STAT_NM as statNm, s.ADDR as addr, " +
+            "           s.BNM as bnm, s.LAT as lat, s.LNG as lng, s.USE_TIME as useTime, " +
+            "           s.PARKING_FREE as parkingFree, s.LIMIT_YN as limitYn, s.LIMIT_DETAIL as limitDetail, " +
+            "           p1.UNIT_PRICE as currentPrice, " + // 급속 요금
+            "           p2.UNIT_PRICE as slowPrice, " +    // 완속 요금
+            "           ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
+            "               sin(:lat * 3.141592653589793 / 180) * sin(s.LAT * 3.141592653589793 / 180) + " +
+            "               cos(:lat * 3.141592653589793 / 180) * cos(s.LAT * 3.141592653589793 / 180) * " +
+            "               cos((s.LNG - :lng) * 3.141592653589793 / 180) " +
+            "           ))), 2) AS distance " +
             "    FROM STATION s " +
+            "    LEFT JOIN CHARGER_PRICE p1 ON s.BNM = p1.BNM AND p1.SPEED_TYPE = '급속' AND p1.APPLY_YEAR = 2026 AND p1.SEASON = '봄가을' " +
+            "    LEFT JOIN CHARGER_PRICE p2 ON s.BNM = p2.BNM AND p2.SPEED_TYPE = '완속' AND p2.APPLY_YEAR = 2026 AND p2.SEASON = '봄가을' " +
             "    WHERE (s.STAT_NM LIKE %:keyword% OR s.ADDR LIKE %:keyword% OR s.BNM LIKE %:keyword%) " +
             ") t " +
-            "WHERE t.distance <= 1.5 " + // 💡 철벽 방어: 1.5km 밖은 결과에서 제외
-            "ORDER BY t.distance ASC " + // 💡 가까운 순서 정렬
+            "WHERE t.distance <= 1.5 " +
+            "ORDER BY t.distance ASC " +
             "FETCH NEXT 100 ROWS ONLY", nativeQuery = true)
     List<MarkerProjection> findNearbyByKeyword(
             @Param("keyword") String keyword,
             @Param("lat") Double lat,
             @Param("lng") Double lng);
-
     /**
      * 3. [상세 조회용] 특정 충전소 정보 + 2개년 요금 히스토리 조인
      * - 규칙 3: 올해와 작년 요금을 한 번에 가져와서 비교할 수 있게 함
@@ -137,4 +145,12 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
     List<StationEntity> findByZcode(String zcode);
     List<StationEntity> findByBnmContaining(String bnm);
     Optional<StationEntity> findByLatAndLng(Double lat, Double lng);
+
+    // 어드민용 키워드 검색 (충전소명 / 주소 / 운영기관)
+    @Query("SELECT s FROM StationEntity s " +
+            "WHERE s.statNm LIKE %:keyword% " +
+            "OR s.addr LIKE %:keyword% " +
+            "OR s.bnm LIKE %:keyword% " +
+            "ORDER BY s.statNm ASC")
+    List<StationEntity> findByIntegratedSearch(@Param("keyword") String keyword);
 }
