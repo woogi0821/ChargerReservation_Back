@@ -42,18 +42,15 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
             // URL별 권한 설정(통행증 검사 규칙)
-            // 재발급 경로 허용: "/member/refresh"를 추가해줘야 리액트가 AT 만료 시 RT를 들고 조용히 접근할 수 있음 -> 추가 예정
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/member/join", "/api/member/check-id","/api/email/**").permitAll()
-                .requestMatchers("/api/stations/**").permitAll()
-                .requestMatchers("/api/member/login", "/api/member/join", "/api/member/refresh").permitAll()
-                .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
-                .requestMatchers("/api/stations/**").permitAll()
-                .requestMatchers("/api/admin/**").hasAuthority("Y")
-                .requestMatchers("/admin/**").hasAuthority("Y")
                 .requestMatchers("/download/**", "/images/**", "/css/**","/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**","/v3/api-docs.yaml").permitAll()
+                .requestMatchers("/api/member/join", "/api/member/check-id","/api/email/**").permitAll()
+                .requestMatchers("/api/member/login", "/api/member/refresh").permitAll()
+                .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                .requestMatchers("/api/stations/**").permitAll()
+                .requestMatchers("/api/admin/**", "/admin/**").hasAuthority("Y")
                 .requestMatchers("/").permitAll()
                 .anyRequest().authenticated() // 그 외 모든 요청은 토큰이 있어야 함
             )

@@ -3,6 +3,7 @@ package com.simplecoding.chargerreservation.member.controller;
 import com.simplecoding.chargerreservation.common.CommonUtil;
 import com.simplecoding.chargerreservation.member.dto.MemberDto;
 import com.simplecoding.chargerreservation.member.dto.TokenDto;
+import com.simplecoding.chargerreservation.member.entity.Member;
 import com.simplecoding.chargerreservation.member.service.MemberService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -15,8 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @Slf4j
 @RestController
@@ -37,6 +36,7 @@ public class MemberController {
         return ResponseEntity.ok().build();
     }
 
+    // 아이디 중복 확인
     @GetMapping("/check-id")
     public ResponseEntity<Boolean> checkId(@RequestParam("loginId") String loginId) {
         boolean isDuplicate = memberService.checkIdDuplicate(loginId);
@@ -63,7 +63,7 @@ public class MemberController {
             // Refresh Token 전용 쿠키 생성
             ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", tokenDto.getRefreshToken())
                 .httpOnly(true)    // JavaScript 접근 차단 (XSS 방어)
-                .secure(false)     // 로컬 테스트 시 false, HTTPS 배포 시 true
+                .secure(false)     // TODO: 로컬 테스트 시 false, HTTPS 배포 시 true
                 .path("/")
                 .maxAge(60 * 60 * 24 * 7) // 7일 (DB 만료일과 동기화)
                 .sameSite("Lax")   // CSRF 방어
@@ -90,19 +90,38 @@ public class MemberController {
     // 로그아웃 (DB에서 RT 삭제)
     @PostMapping("/logout")
     public ResponseEntity<String> logout(Authentication authentication) {
-        // 토큰이 유효하다면 SecurityContextHolder에서 인증 정보 자동 주입
         if (authentication == null) {
             return ResponseEntity.status(401).body("인증 정보가 없습니다.");
         }
 
-        String loginId = authentication.getName();      // 현재 로그인한 유저의 정보를 가져옴
+        String loginId = authentication.getName();
         memberService.logout(loginId);
 
         return ResponseEntity.ok("로그아웃 되었습니다.");
     }
 
+    // 사용자 정보 조회
+    @GetMapping("/me")
+    public ResponseEntity<MemberDto> getCurrentMember() {
+        Member member = memberService.getCurrentMember();
 
+        MemberDto responseDto = MemberDto.builder()
+            .loginId(member.getLoginId())
+            .name(member.getName())
+            .email(member.getEmail())
+            .phone(member.getPhone())
+            .memberGrade(member.getMemberGrade())
+            .build();
+
+        return ResponseEntity.ok(responseDto);
+    }
+
+    // 회원 정보 수정
+    @PutMapping("/me")
+    public ResponseEntity<String> modifyMember(@RequestBody MemberDto memberDto) {
+        memberService.modifyMember(memberDto);
+
+        return ResponseEntity.ok("회원 정보가 수정되었습니다.");
+    }
 
 }
-
-

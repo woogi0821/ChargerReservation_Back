@@ -30,7 +30,7 @@ public class MemberService {
     private final JwtTokenProvider jwtTokenProvider;
 
     /**==========================================
-     * 회원 관리 (회원가입)
+     * 회원 관리 (회원가입, 수정, 탈퇴)
      ========================================== */
     public Long join(MemberDto dto) {
         // 아이디 및 이메일 중복확인
@@ -52,9 +52,6 @@ public class MemberService {
             .email(dto.getEmail())
             .name(dto.getName())
             .phone(dto.getPhone())
-//            .status("ACTIVE")
-//            .memberGrade("N")
-//            .provider("LOCAL")
             .build();
 
         // 저장 및 인증 데이터 삭제
@@ -64,6 +61,30 @@ public class MemberService {
         return savedMember.getMemberId();
     }
 
+    // 회원 수정
+    @Transactional
+    public void modifyMember(MemberDto memberDto) {
+        Member member = getCurrentMember();
+
+        member.updateMember(memberDto.getName(), memberDto.getPhone());
+
+        if (memberDto.getLoginPw() != null && !memberDto.getLoginPw().trim().isEmpty()) {
+            String encodedPw = passwordEncoder.encode(memberDto.getLoginPw());
+            member.updatePassword(encodedPw);
+        }
+    }
+
+    // 회원 탈퇴
+    @Transactional
+    public void withdrawMember(String loginId) {
+        Member member = getCurrentMember();
+        member.setStatus("WITHDRAWN");
+
+        // TODO: 예약 관련 테이블 및 데이터 처리 로직 설계 예정
+        memberTokenRepository.deleteByMember(member);
+
+        log.info("회원 탈퇴 처리 완료: {}", loginId);
+    }
 
     /**==========================================
      * 로그인 인증 및 보안 (Auth)
@@ -134,7 +155,6 @@ public class MemberService {
         Member member = memberRepository.findByLoginId(loginId)
             .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
 
-        // DB에서 해당 멤버의 토큰 삭제
         memberTokenRepository.deleteByMember(member);
     }
 
@@ -142,7 +162,6 @@ public class MemberService {
      * 공통 모듈
      ==========================================*/
     // 현재 로그인 한 유저 엔티티 가져오기
-    // 사용 방법: Member writer = memberService.getCurrentMember();
     public Member getCurrentMember() {
         String currentId = SecurityUtil.getCurrentLoginId();
 
