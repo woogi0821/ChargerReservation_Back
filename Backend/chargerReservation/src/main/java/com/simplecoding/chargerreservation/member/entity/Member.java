@@ -60,4 +60,13 @@ public class Member extends BaseTimeEntity {
         return this;
     }
 
+    public void updateMember(String name, String phone) {
+        this.name = name;
+        this.phone = phone;
+    }
+
+    public void updatePassword(String encodedPassword) {
+        this.loginPw = encodedPassword;
+    }
+
 }
