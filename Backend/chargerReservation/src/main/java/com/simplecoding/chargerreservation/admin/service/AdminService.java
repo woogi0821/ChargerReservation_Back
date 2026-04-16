@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(readOnly = true) // ✅ 수정 — 기본을 readOnly 로 변경
 public class AdminService {
 
     private final AdminRepository adminRepository;
@@ -62,7 +62,6 @@ public class AdminService {
     }
 
     // ── 관리자 전체 목록 조회 ────────────────────────────────────────────────────
-    @Transactional(readOnly = true)
     public List<AdminDto> getAdminList() {
         List<Admin> admins = adminRepository.findAll();
         return admins.stream()
@@ -76,6 +75,7 @@ public class AdminService {
     }
 
     // ── 관리자 등록 ──────────────────────────────────────────────────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminDto createAdmin(AdminDto dto) {
         Member member = memberRepository.findById(dto.getMemberId())
                 .orElseThrow(() -> new RuntimeException("등록 대상 회원을 찾을 수 없습니다"));
@@ -87,7 +87,6 @@ public class AdminService {
     }
 
     // ── 관리자 단건 조회 ─────────────────────────────────────────────────────────
-    @Transactional(readOnly = true)
     public AdminDto getAdmin(Long adminId) {
         Admin admin = adminRepository.findById(adminId)
                 .orElseThrow(() -> new RuntimeException("관리자를 찾을 수 없습니다"));
@@ -95,6 +94,7 @@ public class AdminService {
     }
 
     // ── 관리자 역할 변경 (SUPER 만 가능) ─────────────────────────────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminDto updateAdminRole(Long targetId, String newRole) {
         Admin requester = getRequesterAdmin();
         if (!requester.getAdminRole().equals("SUPER")) {
@@ -107,6 +107,7 @@ public class AdminService {
     }
 
     // ── 관리자 해제 (SUPER 만 가능) ──────────────────────────────────────────────
+    @Transactional // ✅ 쓰기 작업
     public void deleteAdmin(Long targetId) {
         Admin requester = getRequesterAdmin();
         if (!requester.getAdminRole().equals("SUPER")) {
@@ -125,7 +126,6 @@ public class AdminService {
     }
 
     // ── 회원 전체 목록 조회 (SUPER / ALL / MEMBER 파트만 가능) ───────────────────
-    @Transactional(readOnly = true)
     public List<AdminMemberDto> getMemberList() {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole  = requester.getAdminRole().equals("SUPER");
@@ -141,6 +141,7 @@ public class AdminService {
     }
 
     // ── 회원 상태 변경 (SUPER / ALL / MEMBER 파트만 가능) ────────────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminMemberDto updateMemberStatus(Long memberId, String newStatus) {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole  = requester.getAdminRole().equals("SUPER");
@@ -162,7 +163,6 @@ public class AdminService {
     }
 
     // ── 패널티 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ────────────────
-    @Transactional(readOnly = true)
     public List<AdminPenaltyDto> getPenaltyList() {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
@@ -178,6 +178,7 @@ public class AdminService {
     }
 
     // ── 패널티 취소 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminPenaltyDto cancelPenalty(Long penaltyId) {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
@@ -196,7 +197,6 @@ public class AdminService {
     }
 
     // ── 예약 전체 목록 조회 (SUPER / ALL / RESERVATION 파트만 가능) ──────────────
-    @Transactional(readOnly = true)
     public List<AdminReservationDto> getReservationList() {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole       = requester.getAdminRole().equals("SUPER");
@@ -212,6 +212,7 @@ public class AdminService {
     }
 
     // ── 예약 강제 취소 (SUPER / ALL / RESERVATION 파트만 가능) ───────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminReservationDto cancelReservation(Long reservationId) {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole       = requester.getAdminRole().equals("SUPER");
@@ -233,7 +234,6 @@ public class AdminService {
     }
 
     // ── 공지사항 목록 조회 (전체 접근 가능 / 삭제된 것 제외) ─────────────────────
-    @Transactional(readOnly = true)
     public List<AdminNoticeDto> getNoticeList() {
         return noticeRepository.findAll()
                 .stream()
@@ -243,6 +243,7 @@ public class AdminService {
     }
 
     // ── 공지사항 등록 (SUPER 만 가능) ────────────────────────────────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminNoticeDto createNotice(AdminNoticeDto dto) {
         Admin requester = getRequesterAdmin();
         if (!requester.getAdminRole().equals("SUPER")) {
@@ -258,6 +259,7 @@ public class AdminService {
     }
 
     // ── 공지사항 수정 (SUPER 만 가능) ────────────────────────────────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminNoticeDto updateNotice(Long noticeId, AdminNoticeDto dto) {
         Admin requester = getRequesterAdmin();
         if (!requester.getAdminRole().equals("SUPER")) {
@@ -275,6 +277,7 @@ public class AdminService {
     }
 
     // ── 공지사항 삭제 (SUPER 만 가능) ────────────────────────────────────────────
+    @Transactional // ✅ 쓰기 작업
     public void deleteNotice(Long noticeId) {
         Admin requester = getRequesterAdmin();
         if (!requester.getAdminRole().equals("SUPER")) {
@@ -291,9 +294,6 @@ public class AdminService {
     }
 
     // ── 충전소 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
-    // keyword 있으면 검색 결과 반환 (최대 50건)
-    // keyword 없으면 상위 100건 반환
-    @Transactional(readOnly = true)
     public List<AdminStationDto> getStationList(String keyword) {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
@@ -317,7 +317,6 @@ public class AdminService {
     }
 
     // ── 충전기 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
-    @Transactional(readOnly = true)
     public List<AdminChargerDto> getChargerList(String statId) {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
@@ -340,6 +339,7 @@ public class AdminService {
     }
 
     // ── 충전기 상태 변경 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminChargerDto updateChargerStat(String statId, String chargerId, String newStat) {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
@@ -356,7 +356,6 @@ public class AdminService {
     }
 
     // ── 문의 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────
-    @Transactional(readOnly = true)
     public List<AdminInquiryDto> getInquiryList() {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
@@ -372,6 +371,7 @@ public class AdminService {
     }
 
     // ── 문의 답변 등록 (SUPER / ALL / INQUIRY 파트만 가능) ───────────────────────
+    @Transactional // ✅ 쓰기 작업
     public AdminInquiryDto answerInquiry(Long inquiryId, AdminInquiryDto dto) {
         Admin requester = getRequesterAdmin();
         boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
@@ -393,22 +393,20 @@ public class AdminService {
     }
 
     // ── 대시보드 통계 조회 ────────────────────────────────────────────────────────
-    @Transactional(readOnly = true)
     public AdminDashboardDto getDashboardStats() {
         long totalMembers = memberRepository.count();
+
         LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
         LocalDateTime endOfDay = startOfDay.plusDays(1);
         long todayReservations = reservationRepository
                 .findByStartTimeBetween(startOfDay, endOfDay).size();
+
         long totalStations = stationRepository.count();
-        long brokenChargers = chargerRepository.findAll()
-                .stream()
-                .filter(c -> {
-                    String stat = c.getStat() != null ? c.getStat().trim() : "";
-                    return stat.equals("4") || stat.equals("5");
-                })
-                .count();
+
+        long brokenChargers = chargerRepository.countByStatIn(List.of("4", "5"));
+
         long pendingInquiries = inquiryRepository.findByStatus("PENDING").size();
+
         return new AdminDashboardDto(
                 totalMembers,
                 todayReservations,
