@@ -15,7 +15,8 @@ public class TokenDto {
     private String refreshToken;
     private Long memberId;
     private String memberGrade;
-    private Long adminId;       // 관리자 ID
-    private String adminRole;   // 관리자 역할 (SUPER / MANAGER)
-    private String adminPart;   // 관리자 파트 (ALL / MEMBER / RESERVATION 등)
+    private String name;        // ✅ 추가 — 회원 이름
+    private Long adminId;
+    private String adminRole;
+    private String adminPart;
 }
