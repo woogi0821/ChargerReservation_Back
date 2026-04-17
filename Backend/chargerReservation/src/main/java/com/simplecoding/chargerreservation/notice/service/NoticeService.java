@@ -1,5 +1,6 @@
 package com.simplecoding.chargerreservation.notice.service;
 
+import com.simplecoding.chargerreservation.common.ApiResponse;
 import com.simplecoding.chargerreservation.common.MapStruct;
 import com.simplecoding.chargerreservation.notice.dto.NoticeRequestDto;
 import com.simplecoding.chargerreservation.notice.dto.NoticeResponseDto;
@@ -76,11 +77,31 @@ public class NoticeService {
      * [고객용] 목록 조회 (N만 최신순)
      */
     @Transactional(readOnly = true)
-    public List<NoticeResponseDto> getCustomerNoticeList() {
-        List<NoticeEntity> entities = noticeRepository.findByDeleteYnOrderByInsertTimeDesc("N");
-        return entities.stream()
+    public ApiResponse<List<NoticeResponseDto>> getCustomerNoticeList(int page) {
+
+        // 1. 페이징 설정: (페이지 번호, 한 페이지당 개수)
+        // Spring Data JPA의 페이지는 0부터 시작하므로 page - 1을 해줍니다.
+        org.springframework.data.domain.Pageable pageable =
+                org.springframework.data.domain.PageRequest.of(page - 1, 10);
+
+        // 2. 레포지토리 호출 (반환 타입이 Page<NoticeEntity>로 변경됨)
+        org.springframework.data.domain.Page<NoticeEntity> entityPage =
+                noticeRepository.findByDeleteYnOrderByFixYnDescInsertTimeDesc("N", pageable);
+
+        // 3. Entity 리스트를 Dto 리스트로 변환
+        List<NoticeResponseDto> dtoList = entityPage.getContent().stream()
                 .map(mapStruct::toResponseDto)
                 .collect(Collectors.toList());
+
+        // 4. ApiResponse에 페이징 정보(전체 개수, 전체 페이지 수)를 담아 반환
+        return new ApiResponse<>(
+                true,
+                "고객용 공지사항 조회 성공",
+                dtoList,
+                entityPage.getTotalPages(),         // 전체 페이지 수
+                (int) entityPage.getTotalElements() // 전체 게시글 수
+
+        );
     }
 
     /**

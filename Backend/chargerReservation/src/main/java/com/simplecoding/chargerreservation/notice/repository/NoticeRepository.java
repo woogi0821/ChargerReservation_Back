@@ -3,6 +3,8 @@ package com.simplecoding.chargerreservation.notice.repository;
 import com.simplecoding.chargerreservation.notice.entity.NoticeEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Page; // 추가
+import org.springframework.data.domain.Pageable; // 추가
 
 import java.util.List;
 import java.util.Optional;
@@ -11,7 +13,7 @@ import java.util.Optional;
 public interface NoticeRepository extends JpaRepository<NoticeEntity, Long> {
 
     // 1. 고객용: 삭제 안 된 것만 최신순 (기존 유지)
-    List<NoticeEntity> findByDeleteYnOrderByInsertTimeDesc(String deleteYn);
+    Page<NoticeEntity> findByDeleteYnOrderByFixYnDescInsertTimeDesc(String deleteYn, Pageable pageable);
 
     // 2. 관리자용: 모든 데이터를 최신순으로 (추가 추천)
     // deleteYn 조건 없이 전체를 가져오되 시간순으로 정렬합니다.

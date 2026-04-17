@@ -35,22 +35,25 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // REST API이므로 기본 설정 해제(비활성화)
-                .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .httpBasic(hp -> hp.disable())
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // REST API이므로 기본 설정 해제(비활성화)
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .httpBasic(hp -> hp.disable())
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
             // URL별 권한 설정(통행증 검사 규칙)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/download/**", "/images/**", "/css/**","/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**","/v3/api-docs.yaml").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/notices/**").permitAll()
                 .requestMatchers("/api/member/join", "/api/member/check-id","/api/email/**").permitAll()
                 .requestMatchers("/api/member/login", "/api/member/refresh").permitAll()
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .requestMatchers("/api/stations/**").permitAll()
                 .requestMatchers("/api/admin/**", "/admin/**").hasAuthority("Y")
+                .requestMatchers("/ws-charger/**").permitAll()
+                .requestMatchers("/kiosk/**").permitAll()
                 .requestMatchers("/").permitAll()
                 .anyRequest().authenticated() // 그 외 모든 요청은 토큰이 있어야 함
             )
@@ -71,8 +74,8 @@ public class SecurityConfig {
                 })
             )
 
-                // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 끼워 넣기
-                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+            // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 끼워 넣기
+            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

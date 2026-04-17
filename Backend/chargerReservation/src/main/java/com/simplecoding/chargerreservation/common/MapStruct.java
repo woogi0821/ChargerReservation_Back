@@ -30,14 +30,19 @@ public interface MapStruct {
     @Mapping(target = "deleteTime", ignore = true)
     @Mapping(target = "title", source = "dto.title")
     @Mapping(target = "content", source = "dto.content")
+// fixYn이 Dto에 없다면 기본값 'N'을 보장하도록 설정하는 것이 좋습니다.
+    @Mapping(target = "fixYn", source = "dto.fixYn", defaultValue = "N")
     NoticeEntity toEntity(NoticeRequestDto dto);
 
+    // 2. Entity -> ResponseDto 변환 (가장 중요한 부분)
     @Mapping(target = "title", source = "entity.title")
     @Mapping(target = "content", source = "entity.content")
-    // 추가: 날짜를 예쁘게 포맷팅 (예: 2026-04-10 17:00)
-    @Mapping(target = "formattedDate", expression = "java(entity.getInsertTime().format(java.time.format.DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm\")))")
-// 추가: 생성된 지 24시간 이내면 true
-    @Mapping(target = "isNew", expression = "java(entity.getInsertTime().isAfter(java.time.LocalDateTime.now().minusDays(1)))")
+// ✅ 수정: insertTime이 null일 경우를 대비해 삼항 연산자(null 체크) 추가
+    @Mapping(target = "formattedDate",
+            expression = "java(entity.getInsertTime() != null ? entity.getInsertTime().format(java.time.format.DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm\")) : \"\")")
+// ✅ 수정: 기준을 1일로 잡으셨는데, 보통 공지는 7일 정도로 넉넉하게 잡거나 null 체크를 추가합니다.
+    @Mapping(target = "isNew",
+            expression = "java(entity.getInsertTime() != null ? entity.getInsertTime().isAfter(java.time.LocalDateTime.now().minusDays(1)) : false)")
     NoticeResponseDto toResponseDto(NoticeEntity entity);
 
     // --- [3] 변환 로직: @Named로 이름표를 붙여서 자동 호출을 막음 ---
