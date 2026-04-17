@@ -59,10 +59,12 @@ public class ReservationService {
                 .startTime(req.getStartTime())
                 .endTime(estimatedEndTime)
                 .status("RESERVED")
+                .statId(req.getStatId())
                 .build();
 
         Reservation savedReservation = reservationRepository.save(reservation);
-        chargerSocketController.pushStatus(req.getChargerId(),"RESERVED");
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(),"RESERVED");
+        chargerSocketController.pushNewReservation(req.getStatId(), req.getChargerId());
 
         try {
             Member member = memberRepository.findById(memberId)
@@ -89,6 +91,7 @@ public class ReservationService {
                 .endTime(savedReservation.getEndTime())
                 .status(savedReservation.getStatus())
                 .isAlertSent(savedReservation.getIsAlertSent())
+                .statId(savedReservation.getStatId())
                 .build();
     }
     public List<ReservationDto.Response> getMyReservations(Long memberId){
@@ -145,7 +148,7 @@ public class ReservationService {
         List<Reservation> expired = reservationRepository
                 .findByStatusAndEndTimeBefore("CHARGING", now);
         expired.forEach(r -> {r.endCharging("DONE",now);
-        chargerSocketController.pushStatus(r.getChargerId(),"DONE");
+        chargerSocketController.pushStatus(r.getStatId(), r.getChargerId(),"DONE");
         log.info("충전 시간 초과 자동 종료 - 충전기 : {}, 예약ID : {}",r.getChargerId(), r.getId());}
         );
     }
@@ -166,6 +169,7 @@ public class ReservationService {
                 .status(r.getStatus())
                 .actualEndTime(r.getActualEndTime())
                 .isAlertSent(r.getIsAlertSent())
+                .statId(r.getStatId())
                 .build();
     }
     @Transactional(readOnly = true)

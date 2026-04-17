@@ -34,7 +34,7 @@ public class KioskService {
         ).orElseThrow(()-> new ResponseStatusException(HttpStatus.UNAUTHORIZED,"핀번호가 일치하지 않거나 유효한 예약이 없습니다."));
         reservation.changeStatus("CHARGING");
 
-        chargerSocketController.pushStatus(req.getChargerId(),"CHARGING");
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(),"CHARGING");
         log.info("웹소켓 푸시 완료 - chargerId : {}, status : CHARGING", req.getChargerId());
     }
     //충전 종료
@@ -48,7 +48,7 @@ public class KioskService {
         reservation.endCharging("DONE", LocalDateTime.now());
 
         //키오스크의 상태를 WebSocket 푸쉬
-        chargerSocketController.pushStatus(req.getChargerId(), "DONE");
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "DONE");
         log.info("충전 종료 - 충전기 : {}", req.getChargerId());
     }
     //충전 종료 버튼 -> 실제 종료 시각 기록 + 상태변경
@@ -60,7 +60,7 @@ public class KioskService {
                 ).orElseThrow(()-> new ResponseStatusException(HttpStatus.BAD_REQUEST,"진행중인 충전이 없거나 핀번호가 일치하지 않습니다."));
         //endCharging()으로 상태 + actualEndTime 동시 기록
         reservation.endCharging("COMPLETED", LocalDateTime.now());
-        chargerSocketController.pushStatus(req.getChargerId(), "COMPLETED");
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "COMPLETED");
         log.info("충전 조기 종료 - 충전기 : {}", req.getChargerId());
     }
 
