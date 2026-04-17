@@ -20,10 +20,10 @@ public class NoticeController {
      * [고객용] 공지사항 목록 조회 (N만 반환)
      * GET /api/notices
      */
-    @GetMapping
-    public ApiResponse<List<NoticeResponseDto>> getCustomerNoticeList() {
-        List<NoticeResponseDto> list = noticeService.getCustomerNoticeList();
-        return new ApiResponse<>(true, "고객용 공지사항 조회 성공", list, list.size(), 1);
+    @GetMapping("")
+    public ApiResponse<List<NoticeResponseDto>> getCustomerNoticeList(
+            @RequestParam(defaultValue = "1") int page) { // 기본값 1페이지
+        return noticeService.getCustomerNoticeList(page);
     }
 
     /**
