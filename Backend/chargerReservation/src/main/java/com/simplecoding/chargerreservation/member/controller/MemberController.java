@@ -115,15 +115,12 @@ public class MemberController {
         memberService.modifyMember(memberDto);
         return ResponseEntity.ok("회원 정보가 수정되었습니다.");
     }
-}
 
-    // 회원 탈퇴
+    @Operation(summary = "회원 탈퇴", description = "현재 로그인한 회원을 탈퇴 처리합니다")
     @DeleteMapping("/me")
     public ResponseEntity<String> withdraw() {
         Member member = memberService.getCurrentMember();
         memberService.withdrawMember(member.getLoginId());
-
         return ResponseEntity.ok("회원 탈퇴가 완료되었습니다.");
     }
-
 }

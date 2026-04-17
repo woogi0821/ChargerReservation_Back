@@ -21,9 +21,9 @@ public class NoticeController {
 
     @Operation(summary = "고객용 공지사항 목록 조회", description = "삭제되지 않은 공지사항 목록을 반환합니다 (deleteYn = N)")
     @GetMapping
-    public ApiResponse<List<NoticeResponseDto>> getCustomerNoticeList() {
-        List<NoticeResponseDto> list = noticeService.getCustomerNoticeList();
-        return new ApiResponse<>(true, "고객용 공지사항 조회 성공", list, list.size(), 1);
+    public ApiResponse<List<NoticeResponseDto>> getCustomerNoticeList(
+            @RequestParam(defaultValue = "1") int page) {
+        return noticeService.getCustomerNoticeList(page);
     }
 
     @Operation(summary = "관리자용 공지사항 전체 목록 조회", description = "삭제된 공지사항 포함 전체 목록을 반환합니다 (deleteYn = N + Y)")
