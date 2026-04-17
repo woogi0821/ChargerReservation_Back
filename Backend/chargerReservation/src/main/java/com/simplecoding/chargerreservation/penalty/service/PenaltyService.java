@@ -1,6 +1,8 @@
 package com.simplecoding.chargerreservation.penalty.service;
 
 import com.simplecoding.chargerreservation.common.SmsService;
+import com.simplecoding.chargerreservation.member.entity.Member;
+import com.simplecoding.chargerreservation.member.repository.MemberRepository;
 import com.simplecoding.chargerreservation.notification.entity.NotiType;
 import com.simplecoding.chargerreservation.notification.service.NotificationService;
 import com.simplecoding.chargerreservation.penalty.dto.PenaltyRequestDto;
@@ -10,6 +12,7 @@ import com.simplecoding.chargerreservation.penalty.repository.PenaltyRepository;
 import com.simplecoding.chargerreservation.reservation.entity.Reservation;
 import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +22,7 @@ import java.util.stream.Collectors;
 
 import static com.simplecoding.chargerreservation.member.entity.QMember.member;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PenaltyService {
@@ -27,6 +31,8 @@ public class PenaltyService {
     private final SmsService smsService;
     private final ReservationRepository reservationRepository;
     private final NotificationService notificationService;
+    private final MemberRepository memberRepository;
+
     //      1. 패널티 등록 및 문자 발송 (단계별 처리)
     @Transactional
     public PenaltyResponseDto processPenaltyStep(PenaltyRequestDto requestDto, int step) {
@@ -61,7 +67,7 @@ public class PenaltyService {
         LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59).withNano(999999999);
 
-        // 오늘 날짜로 '3단계(최종)' 기록이 하나라도 있으면 true 반환
+        // 오늘 날짜로 '3단계(최종)' 기록이 하나라도 있으면 true 반환(예약막음)
         return penaltyRepository.existsByMemberIdAndNudgeCountAndInsertTimeBetween(memberId, 3, start, end);
     }
 
@@ -69,20 +75,56 @@ public class PenaltyService {
 //     [보조] 단계별 메시지 생성 및 전송
 
     private void sendStepSms(PenaltyHistory penalty) {
-        String message = "";
+        // 1. DB에서 진짜 회원 정보(이름, 폰번호) 가져오기
+        Member member = memberRepository.findById(Long.parseLong(penalty.getMemberId()))
+                .orElseThrow(() -> new RuntimeException("회원을 찾을 수 없습니다. ID: " + penalty.getMemberId()));
+        String name = member.getName();
+        String phone = member.getPhone();
+        String reason = "";
+        String until = "오늘 자정";
         switch (penalty.getNudgeCount()) {
             case 1:
-                message = "[충전 완료 안내] 충전이 완료되었습니다. 즉시 차량을 이동해 주세요. ※ 1시간 초과 점유 시 과태료가 부과될 수 있습니다.";
+                reason = "충전 완료 후 미출차";
+                until = "현재";
                 break;
             case 2:
-                message = "[출차 지연 경고] 10분이 경과되었습니다. 지속 미이동 시 금일 예약 서비스 이용이 제한될 수 있습니다.";
+                reason = "출차 지연 10분 경과";
+                until = "현재";
                 break;
             case 3:
-                message = "[이용 제한 안내] 장시간 미출차로 인해 금일 예약 서비스 이용이 자정까지 제한되었습니다.";
+                reason = "예약 시간 15분 경과 패널티";
+                until = "오늘 자정";
                 break;
         }
-        System.out.println(">>> [SMS 전송 To: " + penalty.getMemberId() + "] " + message);
-        penalty.setNotiSentYn("Y");
+        // 🎯 [실제 전송 구간]
+        try {
+            // 지환님 팀의 smsService.sendPenaltyMessage 형식을 따릅니다.
+            // (수신번호, 사용자이름, 제목, 내용) 순서로 호출
+            smsService.sendPenaltyMessage(
+                    phone,  // penalty.getMemberId() 대신 진짜 번호 대입
+                    name,   // "고객" 대신 진짜 이름 대입
+                    reason,
+                    until
+            );
+
+            // 전송 성공 시 상태값 변경
+            penalty.setNotiSentYn("Y");
+            log.info("✅ 패널티 {}단계 문자 발송 성공: 대상={},사유={}, 제한={}", penalty.getNudgeCount(), name, reason, until);
+            // 2. 웹 알림 저장 (새로 추가할 부분)
+            notificationService.createNotification(
+                    member,
+                    "패널티 안내",
+                    reason + " 기록으로 인해 " + until + "까지 제한됩니다.",
+                    NotiType.PENALTY,
+                    "/mypage/penalty"
+            );
+            penalty.setNotiSentYn("Y");
+            log.info("✅ 패널티 알림 통합 발송 성공: 대상={}", name);
+
+        } catch (Exception e) {
+            log.error("❌ 패널티 문자 발송 실패: {}", e.getMessage());
+            penalty.setNotiSentYn("N"); // 실패 시 N으로 기록
+        }
     }
 
 

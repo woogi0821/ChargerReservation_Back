@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Slf4j
+@Slf4j // 로그 기록남기기 위한 도구
 @Component
 @RequiredArgsConstructor // Repository와 Service를 자동으로 연결해줍니다.
 public class PenaltyScheduler {
