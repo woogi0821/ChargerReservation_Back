@@ -17,26 +17,28 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
      * - 반환 타입이 MarkerProjection이므로 계산된 값이 유실되지 않음
      */
 
-    @Query(value = "SELECT " +
-            "    s.STAT_ID AS statId, " +
-            "    s.STAT_NM AS statNm, " +
-            "    s.LAT AS lat, " +
-            "    s.LNG AS lng, " +
-            "    ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
-            "        sin(TRUNC(:lat, 8) * (acos(-1)/180)) * sin(TRUNC(s.LAT, 8) * (acos(-1)/180)) + " +
-            "        cos(TRUNC(:lat, 8) * (acos(-1)/180)) * cos(TRUNC(s.LAT, 8) * (acos(-1)/180)) * " +
-            "        cos((TRUNC(s.LNG, 8) * (acos(-1)/180)) - (TRUNC(:lng, 8) * (acos(-1)/180))) " +
-            "    ))), 2) AS distance, " +
-            "    (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.STAT = '2') AS availableCount, " +
-            "    (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID) AS totalCount, " +
-            "    (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.STAT IN ('1', '4', '5')) AS brokenCount " +
-            "FROM STATION s " +
-            "WHERE ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
-            "        sin(TRUNC(:lat, 8) * (acos(-1)/180)) * sin(TRUNC(s.LAT, 8) * (acos(-1)/180)) + " +
-            "        cos(TRUNC(:lat, 8) * (acos(-1)/180)) * cos(TRUNC(s.LAT, 8) * (acos(-1)/180)) * " +
-            "        cos((TRUNC(s.LNG, 8) * (acos(-1)/180)) - (TRUNC(:lng, 8) * (acos(-1)/180))) " +
-            "    ))), 2) <= :radius " +
-            "ORDER BY distance ASC " +
+    @Query(value = "SELECT * FROM ( " +
+            "    SELECT " +
+            "        s.STAT_ID AS statId, " +
+            "        s.STAT_NM AS statNm, " +
+            "        s.LAT AS lat, " +
+            "        s.LNG AS lng, " +
+            "        ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
+            "            sin(:lat * (acos(-1)/180)) * sin(s.LAT * (acos(-1)/180)) + " +
+            "            cos(:lat * (acos(-1)/180)) * cos(s.LAT * (acos(-1)/180)) * " +
+            "            cos((s.LNG * (acos(-1)/180)) - (:lng * (acos(-1)/180))) " +
+            "        ))), 2) AS distance, " +
+            "        COUNT(CASE WHEN c.STAT = '2' THEN 1 END) AS availableCount, " +
+            "        COUNT(c.CHARGER_ID) AS totalCount, " +
+            "        COUNT(CASE WHEN c.STAT IN ('1', '4', '5') THEN 1 END) AS brokenCount " +
+            "    FROM STATION s " +
+            "    LEFT JOIN CHARGER c ON s.STAT_ID = c.STAT_ID " +
+            "    WHERE s.LAT BETWEEN :lat - 0.015 AND :lat + 0.015 " +
+            "      AND s.LNG BETWEEN :lng - 0.015 AND :lng + 0.015 " +
+            "    GROUP BY s.STAT_ID, s.STAT_NM, s.LAT, s.LNG " +
+            ") t " +
+            "WHERE t.distance <= :radius " +
+            "ORDER BY t.distance ASC " +
             "FETCH NEXT 100 ROWS ONLY",
             nativeQuery = true)
     List<MarkerProjection> findMarkersWithinRadius(
@@ -54,27 +56,40 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             "           s.PARKING_FREE as parkingFree, s.LIMIT_YN as limitYn, s.LIMIT_DETAIL as limitDetail, " +
             "           p1.UNIT_PRICE as currentPrice, " +
             "           p2.UNIT_PRICE as slowPrice, " +
-            "           /* ✨ 필터링을 위한 실시간 충전기 상태 추가 */ " +
-            "           (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.STAT = '2') AS availableCount, " +
-            "           (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.CHARGER_TYPE IN ('01','03','04','05','06','08')) AS fastCount, " +
-            "           (SELECT COUNT(*) FROM CHARGER c WHERE c.STAT_ID = s.STAT_ID AND c.CHARGER_TYPE IN ('02','07')) AS slowCount, " +
+            "           /* ✅ 최적화 1: 서브쿼리 통합 - CHARGER 테이블 스캔을 3번에서 1번으로 단축 */ " +
+            "           c_stats.availableCount, " +
+            "           c_stats.fastCount, " +
+            "           c_stats.slowCount, " +
+            "           /* 거리 계산식 유지 */ " +
             "           ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
             "               sin(:lat * 3.141592653589793 / 180) * sin(s.LAT * 3.141592653589793 / 180) + " +
             "               cos(:lat * 3.141592653589793 / 180) * cos(s.LAT * 3.141592653589793 / 180) * " +
             "               cos((s.LNG - :lng) * 3.141592653589793 / 180) " +
             "           ))), 2) AS distance " +
             "    FROM STATION s " +
+            "    /* ✅ 최적화 2: 상관 서브쿼리 대신 인라인 뷰 조인 사용 */ " +
+            "    LEFT JOIN ( " +
+            "        SELECT STAT_ID, " +
+            "               COUNT(CASE WHEN STAT = '2' THEN 1 END) AS availableCount, " +
+            "               COUNT(CASE WHEN CHARGER_TYPE IN ('01','03','04','05','06','08') THEN 1 END) AS fastCount, " +
+            "               COUNT(CASE WHEN CHARGER_TYPE IN ('02','07') THEN 1 END) AS slowCount " +
+            "        FROM CHARGER " +
+            "        GROUP BY STAT_ID " +
+            "    ) c_stats ON s.STAT_ID = c_stats.STAT_ID " +
             "    LEFT JOIN CHARGER_PRICE p1 ON s.BNM = p1.BNM " +
             "        AND p1.SPEED_TYPE = '급속' " +
             "        AND p1.APPLY_YEAR = :year AND p1.SEASON = :season " +
             "    LEFT JOIN CHARGER_PRICE p2 ON s.BNM = p2.BNM " +
             "        AND p2.SPEED_TYPE = '완속' " +
             "        AND p2.APPLY_YEAR = :year AND p2.SEASON = :season " +
-            "    WHERE s.LAT IS NOT NULL AND s.LNG IS NOT NULL " +
+            "    /* ✅ 최적화 3: 인덱스 스캔 유도 - 반경 기반 단순 사각형 필터 추가 (대략적인 범위 우선 필터링) */ " +
+            "    WHERE s.LAT BETWEEN (:lat - (:radius/111)) AND (:lat + (:radius/111)) " +
+            "      AND s.LNG BETWEEN (:lng - (:radius/88)) AND (:lng + (:radius/88)) " +
+            "      AND s.LAT IS NOT NULL AND s.LNG IS NOT NULL " +
             ") t " +
             "WHERE t.distance <= :radius " +
             "ORDER BY t.distance ASC " +
-            "FETCH NEXT 100 ROWS ONLY", nativeQuery = true) // ✨ 100개 고정
+            "FETCH NEXT 100 ROWS ONLY", nativeQuery = true)
     List<MarkerProjection> findTop100StationsWithinRadius(
             @Param("lat") Double lat,
             @Param("lng") Double lng,
