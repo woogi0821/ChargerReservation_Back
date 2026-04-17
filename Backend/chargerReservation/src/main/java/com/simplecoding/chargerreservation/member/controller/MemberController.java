@@ -116,3 +116,14 @@ public class MemberController {
         return ResponseEntity.ok("회원 정보가 수정되었습니다.");
     }
 }
+
+    // 회원 탈퇴
+    @DeleteMapping("/me")
+    public ResponseEntity<String> withdraw() {
+        Member member = memberService.getCurrentMember();
+        memberService.withdrawMember(member.getLoginId());
+
+        return ResponseEntity.ok("회원 탈퇴가 완료되었습니다.");
+    }
+
+}
