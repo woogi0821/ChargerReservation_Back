@@ -3,6 +3,7 @@ package com.simplecoding.chargerreservation.reservation.repository;
 import com.simplecoding.chargerreservation.reservation.entity.Reservation;
 import org.springframework.data.domain.Example;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -77,5 +78,10 @@ boolean isChargerCurrentlyOccupied(
     // 오늘 예약 건수 조회
     List<Reservation> findByStartTimeBetween(
             LocalDateTime start, LocalDateTime end);
+
+    // 회원 탈퇴 시 예약 취소
+    @Modifying
+    @Query("UPDATE Reservation r SET r.status = 'CANCELLED' WHERE r.memberId = :memberId AND r.status = 'RESERVED'")
+    void cancelAllByMemberId(@Param("memberId") Long memberId);
 
 }

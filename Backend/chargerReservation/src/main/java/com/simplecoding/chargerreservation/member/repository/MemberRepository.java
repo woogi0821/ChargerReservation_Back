@@ -2,6 +2,9 @@ package com.simplecoding.chargerreservation.member.repository;
 
 import com.simplecoding.chargerreservation.member.entity.Member;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -15,9 +18,11 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     // 소셜 로그인 중복 확인 및 기존 회원 찾기
     Optional<Member> findByProviderAndProviderId(String provider, String providerId);
 
-    // 회원가입 시 아이디 중복 체크를 위해 필요
-    boolean existsByLoginId(String loginId);
-
     // 이메일인증 아이디 중복 확인
     boolean existsByEmail(String email);
+
+    @Modifying
+    @Query("UPDATE Reservation r SET r.status = 'CANCELLED' " +
+        "WHERE r.member = :member AND r.status IN ('RESERVED')")
+    void cancelAllReservationsByMember(@Param("member") Member member);
 }
