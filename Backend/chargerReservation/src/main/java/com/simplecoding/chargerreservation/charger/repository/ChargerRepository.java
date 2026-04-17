@@ -17,8 +17,11 @@ public interface ChargerRepository extends JpaRepository<ChargerEntity, ChargerI
 
     List<ChargerEntity> findByStatIdIn(List<String> statIds);
 
-    // ✅ 추가 — 대시보드 고장 충전기 카운트용 (DB 에서 직접 count)
+    // ✅ 기존 — 대시보드 고장 충전기 카운트용
     long countByStatIn(List<String> stats);
+
+    // ✅ 추가 — 메인페이지 통계용 (가용 충전기 카운트)
+    long countByStat(String stat);
 
     @Modifying
     @Query("UPDATE ChargerEntity c SET " +

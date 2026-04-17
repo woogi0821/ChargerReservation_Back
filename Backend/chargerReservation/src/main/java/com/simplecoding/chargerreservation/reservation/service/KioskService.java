@@ -4,6 +4,8 @@ package com.simplecoding.chargerreservation.reservation.service;
 //DONE = 예약 시간이 다 되어 자연 종료된 경우
 //COMPLETED = 사용자가 키오스크에서 직접 조기 종료한 경우
 
+import com.simplecoding.chargerreservation.penalty.dto.PenaltyRequestDto;
+import com.simplecoding.chargerreservation.penalty.service.PenaltyService;
 import com.simplecoding.chargerreservation.reservation.dto.KioskDto;
 import com.simplecoding.chargerreservation.reservation.entity.Reservation;
 import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
@@ -26,6 +28,7 @@ public class KioskService {
 
     private final ReservationRepository reservationRepository;
     private final ChargerSocketController chargerSocketController;
+    private final PenaltyService penaltyService;
 
     @Transactional
     public void startCharging(KioskDto.AuthRequest req) {
@@ -46,6 +49,7 @@ public class KioskService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "충전 중인 예약을 찾을 수 없습니다."));
         //Entity의 endCharging()호출 -> status=DONE + actualEndTime = 현재시간 기록
         reservation.endCharging("DONE", LocalDateTime.now());
+        sendPenaltyNotice(reservation, 1, "충전 시간 만료");
 
         //키오스크의 상태를 WebSocket 푸쉬
         chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "DONE");
@@ -60,10 +64,23 @@ public class KioskService {
                 ).orElseThrow(()-> new ResponseStatusException(HttpStatus.BAD_REQUEST,"진행중인 충전이 없거나 핀번호가 일치하지 않습니다."));
         //endCharging()으로 상태 + actualEndTime 동시 기록
         reservation.endCharging("COMPLETED", LocalDateTime.now());
+        sendPenaltyNotice(reservation, 1, "사용자 직접 종료 및 출차 확인");
         chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "COMPLETED");
         log.info("충전 조기 종료 - 충전기 : {}", req.getChargerId());
     }
+//     [공통 로직] 패널티 서비스 호출 및 문자 발송 요청
+private void sendPenaltyNotice(Reservation r, int step, String reason) {
+    try {
+        PenaltyRequestDto penaltyDto = new PenaltyRequestDto();
+        penaltyDto.setMemberId(String.valueOf(r.getMemberId()));
+        penaltyDto.setReservationId(r.getId());
+        penaltyDto.setReason(reason);
 
+        penaltyService.processPenaltyStep(penaltyDto, step);
+    } catch (Exception e) {
+        log.warn("⚠️ 패널티 서비스 호출 실패 (예약ID: {}): {}", r.getId(), e.getMessage());
+    }
+}
     public KioskDto.StatusResponse getChargerStatus(String chargerId){
         Optional<Reservation> opt = reservationRepository
                 .findTopByChargerIdAndStatusIn(chargerId, List.of("RESERVED", "CHARGING"));
