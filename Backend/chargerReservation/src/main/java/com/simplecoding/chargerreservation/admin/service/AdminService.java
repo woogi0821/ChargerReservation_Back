@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true) // ✅ 수정 — 기본을 readOnly 로 변경
+@Transactional(readOnly = true)
 public class AdminService {
 
     private final AdminRepository adminRepository;
@@ -50,6 +50,24 @@ public class AdminService {
     private final StationRepository stationRepository;
     private final ChargerRepository chargerRepository;
     private final InquiryRepository inquiryRepository;
+
+    // ── 권한 체크 헬퍼 ──────────────────────────────────────────────────────────
+    private boolean isSuperRole(Admin admin) {
+        return admin.getAdminRole().equals("SUPER");
+    }
+
+    // 수정/삭제 권한 체크 — SUPER / 해당 파트만
+    private boolean canEdit(Admin admin, String part) {
+        return isSuperRole(admin)
+                || admin.getAdminPart().equals(part);
+    }
+
+    // 회원 조회 권한 체크 — SUPER / MEMBER 파트만
+    private boolean canViewMember(Admin admin) {
+        return isSuperRole(admin)
+                || admin.getAdminPart().equals("MEMBER")
+                || admin.getAdminPart().equals("ALL");
+    }
 
     // ── 요청자 관리자 조회 헬퍼 ─────────────────────────────────────────────────
     private Admin getRequesterAdmin() {
@@ -74,9 +92,13 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // ── 관리자 등록 ──────────────────────────────────────────────────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 관리자 등록 (SUPER 만 가능) ──────────────────────────────────────────────
+    @Transactional
     public AdminDto createAdmin(AdminDto dto) {
+        Admin requester = getRequesterAdmin();
+        if (!isSuperRole(requester)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SUPER 권한만 관리자 등록이 가능합니다");
+        }
         Member member = memberRepository.findById(dto.getMemberId())
                 .orElseThrow(() -> new RuntimeException("등록 대상 회원을 찾을 수 없습니다"));
         Admin admin = new Admin(dto.getMemberId(), dto.getAdminRole());
@@ -94,10 +116,10 @@ public class AdminService {
     }
 
     // ── 관리자 역할 변경 (SUPER 만 가능) ─────────────────────────────────────────
-    @Transactional // ✅ 쓰기 작업
+    @Transactional
     public AdminDto updateAdminRole(Long targetId, String newRole) {
         Admin requester = getRequesterAdmin();
-        if (!requester.getAdminRole().equals("SUPER")) {
+        if (!isSuperRole(requester)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SUPER 권한만 역할 변경이 가능합니다");
         }
         Admin target = adminRepository.findById(targetId)
@@ -107,10 +129,10 @@ public class AdminService {
     }
 
     // ── 관리자 해제 (SUPER 만 가능) ──────────────────────────────────────────────
-    @Transactional // ✅ 쓰기 작업
+    @Transactional
     public void deleteAdmin(Long targetId) {
         Admin requester = getRequesterAdmin();
-        if (!requester.getAdminRole().equals("SUPER")) {
+        if (!isSuperRole(requester)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SUPER 권한만 관리자 해제가 가능합니다");
         }
         if (requester.getAdminId().equals(targetId)) {
@@ -125,13 +147,11 @@ public class AdminService {
         memberRepository.save(member);
     }
 
-    // ── 회원 전체 목록 조회 (SUPER / ALL / MEMBER 파트만 가능) ───────────────────
+    // ── 회원 전체 목록 조회 (SUPER / MEMBER 파트만 가능) ─────────────────────────
     public List<AdminMemberDto> getMemberList() {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole  = requester.getAdminRole().equals("SUPER");
-        boolean isMemberPart = requester.getAdminPart().equals("MEMBER")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isMemberPart) {
+        // ✅ 회원 관리는 SUPER / MEMBER 파트만 조회 가능
+        if (!canViewMember(requester)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "회원 조회 권한이 없습니다");
         }
         return memberRepository.findAll()
@@ -140,14 +160,11 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // ── 회원 상태 변경 (SUPER / ALL / MEMBER 파트만 가능) ────────────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 회원 상태 변경 (SUPER / MEMBER 파트만 가능) ──────────────────────────────
+    @Transactional
     public AdminMemberDto updateMemberStatus(Long memberId, String newStatus) {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole  = requester.getAdminRole().equals("SUPER");
-        boolean isMemberPart = requester.getAdminPart().equals("MEMBER")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isMemberPart) {
+        if (!canEdit(requester, "MEMBER")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "회원 상태 변경 권한이 없습니다");
         }
         Member member = memberRepository.findById(memberId)
@@ -162,29 +179,21 @@ public class AdminService {
         return AdminMemberDto.from(memberRepository.save(member));
     }
 
-    // ── 패널티 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ────────────────
+    // ── 패널티 전체 목록 조회 (관리자면 누구나 가능) ─────────────────────────────
     public List<AdminPenaltyDto> getPenaltyList() {
-        Admin requester = getRequesterAdmin();
-        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isInquiryPart) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "패널티 조회 권한이 없습니다");
-        }
+        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
+        getRequesterAdmin();
         return penaltyRepository.findAll()
                 .stream()
                 .map(AdminPenaltyDto::from)
                 .collect(Collectors.toList());
     }
 
-    // ── 패널티 취소 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 패널티 취소 (SUPER / PENALTY 파트만 가능) ────────────────────────────────
+    @Transactional
     public AdminPenaltyDto cancelPenalty(Long penaltyId) {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isInquiryPart) {
+        if (!canEdit(requester, "PENALTY")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "패널티 취소 권한이 없습니다");
         }
         PenaltyHistory penalty = penaltyRepository.findById(penaltyId)
@@ -196,29 +205,21 @@ public class AdminService {
         return AdminPenaltyDto.from(penaltyRepository.save(penalty));
     }
 
-    // ── 예약 전체 목록 조회 (SUPER / ALL / RESERVATION 파트만 가능) ──────────────
+    // ── 예약 전체 목록 조회 (관리자면 누구나 가능) ───────────────────────────────
     public List<AdminReservationDto> getReservationList() {
-        Admin requester = getRequesterAdmin();
-        boolean isSuperRole       = requester.getAdminRole().equals("SUPER");
-        boolean isReservationPart = requester.getAdminPart().equals("RESERVATION")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isReservationPart) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "예약 조회 권한이 없습니다");
-        }
+        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
+        getRequesterAdmin();
         return reservationRepository.findAll()
                 .stream()
                 .map(AdminReservationDto::from)
                 .collect(Collectors.toList());
     }
 
-    // ── 예약 강제 취소 (SUPER / ALL / RESERVATION 파트만 가능) ───────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 예약 강제 취소 (SUPER / RESERVATION 파트만 가능) ─────────────────────────
+    @Transactional
     public AdminReservationDto cancelReservation(Long reservationId) {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole       = requester.getAdminRole().equals("SUPER");
-        boolean isReservationPart = requester.getAdminPart().equals("RESERVATION")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isReservationPart) {
+        if (!canEdit(requester, "RESERVATION")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "예약 취소 권한이 없습니다");
         }
         Reservation reservation = reservationRepository.findById(reservationId)
@@ -233,8 +234,10 @@ public class AdminService {
         return AdminReservationDto.from(reservationRepository.save(reservation));
     }
 
-    // ── 공지사항 목록 조회 (전체 접근 가능 / 삭제된 것 제외) ─────────────────────
+    // ── 공지사항 목록 조회 (관리자면 누구나 가능) ─────────────────────────────────
     public List<AdminNoticeDto> getNoticeList() {
+        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
+        getRequesterAdmin();
         return noticeRepository.findAll()
                 .stream()
                 .filter(n -> n.getDeleteYn().equals("N"))
@@ -242,12 +245,12 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // ── 공지사항 등록 (SUPER 만 가능) ────────────────────────────────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 공지사항 등록 (SUPER / INQUIRY 파트만 가능) ───────────────────────────────
+    @Transactional
     public AdminNoticeDto createNotice(AdminNoticeDto dto) {
         Admin requester = getRequesterAdmin();
-        if (!requester.getAdminRole().equals("SUPER")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SUPER 권한만 공지사항 등록이 가능합니다");
+        if (!canEdit(requester, "INQUIRY")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "공지사항 등록 권한이 없습니다");
         }
         NoticeEntity notice = NoticeEntity.builder()
                 .title(dto.getTitle())
@@ -258,12 +261,12 @@ public class AdminService {
         return AdminNoticeDto.from(noticeRepository.save(notice));
     }
 
-    // ── 공지사항 수정 (SUPER 만 가능) ────────────────────────────────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 공지사항 수정 (SUPER / INQUIRY 파트만 가능) ───────────────────────────────
+    @Transactional
     public AdminNoticeDto updateNotice(Long noticeId, AdminNoticeDto dto) {
         Admin requester = getRequesterAdmin();
-        if (!requester.getAdminRole().equals("SUPER")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SUPER 권한만 공지사항 수정이 가능합니다");
+        if (!canEdit(requester, "INQUIRY")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "공지사항 수정 권한이 없습니다");
         }
         NoticeEntity notice = noticeRepository.findById(noticeId)
                 .orElseThrow(() -> new RuntimeException("공지사항을 찾을 수 없습니다"));
@@ -276,12 +279,12 @@ public class AdminService {
         return AdminNoticeDto.from(noticeRepository.save(notice));
     }
 
-    // ── 공지사항 삭제 (SUPER 만 가능) ────────────────────────────────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 공지사항 삭제 (SUPER / INQUIRY 파트만 가능) ───────────────────────────────
+    @Transactional
     public void deleteNotice(Long noticeId) {
         Admin requester = getRequesterAdmin();
-        if (!requester.getAdminRole().equals("SUPER")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SUPER 권한만 공지사항 삭제가 가능합니다");
+        if (!canEdit(requester, "INQUIRY")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "공지사항 삭제 권한이 없습니다");
         }
         NoticeEntity notice = noticeRepository.findById(noticeId)
                 .orElseThrow(() -> new RuntimeException("공지사항을 찾을 수 없습니다"));
@@ -293,15 +296,10 @@ public class AdminService {
         noticeRepository.save(notice);
     }
 
-    // ── 충전소 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
+    // ── 충전소 목록 조회 (관리자면 누구나 가능) ───────────────────────────────────
     public List<AdminStationDto> getStationList(String keyword) {
-        Admin requester = getRequesterAdmin();
-        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isChargerPart = requester.getAdminPart().equals("CHARGER")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isChargerPart) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전소 조회 권한이 없습니다");
-        }
+        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
+        getRequesterAdmin();
         if (keyword != null && !keyword.isEmpty()) {
             return stationRepository.findByIntegratedSearch(keyword)
                     .stream()
@@ -316,15 +314,10 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // ── 충전기 목록 조회 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
+    // ── 충전기 목록 조회 (관리자면 누구나 가능) ───────────────────────────────────
     public List<AdminChargerDto> getChargerList(String statId) {
-        Admin requester = getRequesterAdmin();
-        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isChargerPart = requester.getAdminPart().equals("CHARGER")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isChargerPart) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전기 조회 권한이 없습니다");
-        }
+        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
+        getRequesterAdmin();
         if (statId != null && !statId.isEmpty()) {
             return chargerRepository.findByStatId(statId)
                     .stream()
@@ -338,14 +331,11 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // ── 충전기 상태 변경 (SUPER / ALL / CHARGER 파트만 가능) ─────────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 충전기 상태 변경 (SUPER / CHARGER 파트만 가능) ───────────────────────────
+    @Transactional
     public AdminChargerDto updateChargerStat(String statId, String chargerId, String newStat) {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isChargerPart = requester.getAdminPart().equals("CHARGER")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isChargerPart) {
+        if (!canEdit(requester, "CHARGER")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "충전기 상태 변경 권한이 없습니다");
         }
         ChargerId id = new ChargerId(statId, chargerId);
@@ -355,29 +345,21 @@ public class AdminService {
         return AdminChargerDto.from(chargerRepository.save(charger));
     }
 
-    // ── 문의 전체 목록 조회 (SUPER / ALL / INQUIRY 파트만 가능) ──────────────────
+    // ── 문의 전체 목록 조회 (관리자면 누구나 가능) ───────────────────────────────
     public List<AdminInquiryDto> getInquiryList() {
-        Admin requester = getRequesterAdmin();
-        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isInquiryPart) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "문의 조회 권한이 없습니다");
-        }
+        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
+        getRequesterAdmin();
         return inquiryRepository.findAll()
                 .stream()
                 .map(AdminInquiryDto::from)
                 .collect(Collectors.toList());
     }
 
-    // ── 문의 답변 등록 (SUPER / ALL / INQUIRY 파트만 가능) ───────────────────────
-    @Transactional // ✅ 쓰기 작업
+    // ── 문의 답변 등록 (SUPER / INQUIRY 파트만 가능) ─────────────────────────────
+    @Transactional
     public AdminInquiryDto answerInquiry(Long inquiryId, AdminInquiryDto dto) {
         Admin requester = getRequesterAdmin();
-        boolean isSuperRole   = requester.getAdminRole().equals("SUPER");
-        boolean isInquiryPart = requester.getAdminPart().equals("INQUIRY")
-                || requester.getAdminPart().equals("ALL");
-        if (!isSuperRole && !isInquiryPart) {
+        if (!canEdit(requester, "INQUIRY")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "문의 답변 권한이 없습니다");
         }
         Inquiry inquiry = inquiryRepository.findById(inquiryId)
