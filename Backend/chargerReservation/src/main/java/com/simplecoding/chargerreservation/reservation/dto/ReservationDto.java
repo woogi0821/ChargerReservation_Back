@@ -27,6 +27,8 @@ public class ReservationDto {
         @NotBlank(message = "차량 번호를 입력해주세요.")
         private String carNumber;
 
+        private String statId;
+
         @NotNull(message = "예약 시작 시간을 선택해주세요.")
         @Future(message = "예약은 현재 시간 이후로만 가능합니다.")
         private LocalDateTime startTime;
@@ -42,6 +44,7 @@ public class ReservationDto {
         private String memberName; // 관리자 페이지에서 보여줄 이름
         private String chargerId;
         private String carNumber;
+        private String statId;
         private String reservationPin;
         private LocalDateTime startTime;
         private LocalDateTime endTime;

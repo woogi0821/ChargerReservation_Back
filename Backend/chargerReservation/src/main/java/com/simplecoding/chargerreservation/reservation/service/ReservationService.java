@@ -62,10 +62,12 @@ public class ReservationService {
                 .startTime(req.getStartTime())
                 .endTime(estimatedEndTime)
                 .status("RESERVED")
+                .statId(req.getStatId())
                 .build();
 
         Reservation savedReservation = reservationRepository.save(reservation);
-        chargerSocketController.pushStatus(req.getChargerId(), "RESERVED");
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(),"RESERVED");
+        chargerSocketController.pushNewReservation(req.getStatId(), req.getChargerId());
 
         try {
             Member member = memberRepository.findById(memberId)
@@ -92,6 +94,7 @@ public class ReservationService {
                 .endTime(savedReservation.getEndTime())
                 .status(savedReservation.getStatus())
                 .isAlertSent(savedReservation.getIsAlertSent())
+                .statId(savedReservation.getStatId())
                 .build();
     }
 
@@ -141,10 +144,38 @@ public class ReservationService {
         LocalDateTime graceDeadline = LocalDateTime.now().minusMinutes(15);
         List<Reservation> noShows = reservationRepository.findByStatusAndStartTimeBefore("RESERVED", graceDeadline);
 
+    @Scheduled(fixedDelay =  60000)
+    @Transactional
+    public void processExpiredCharging(){
+        LocalDateTime now = LocalDateTime.now();
+        List<Reservation> expired = reservationRepository
+                .findByStatusAndEndTimeBefore("CHARGING", now);
+        expired.forEach(r -> {r.endCharging("DONE",now);
+        chargerSocketController.pushStatus(r.getStatId(), r.getChargerId(),"DONE");
+        log.info("충전 시간 초과 자동 종료 - 충전기 : {}, 예약ID : {}",r.getChargerId(), r.getId());}
+        );
+    }
 
         noShows.forEach(r -> {
             r.changeStatus("NO_SHOW");
 
+        return ReservationDto.Response.builder()
+                .id(r.getId())
+                .chargerId(r.getChargerId())
+                .carNumber(r.getCarNumber())
+                .reservationPin(r.getReservationPin())
+                .startTime(r.getStartTime())
+                .endTime(r.getEndTime())
+                .status(r.getStatus())
+                .actualEndTime(r.getActualEndTime())
+                .isAlertSent(r.getIsAlertSent())
+                .statId(r.getStatId())
+                .build();
+    }
+    @Transactional(readOnly = true)
+    public List<ReservationDto.Response> getAllReservations() {
+        // 1. 모든 예약 데이터를 가져옴 (필요 시 최신순 정렬)
+        List<Reservation> reservations = reservationRepository.findAll();
             // 패널티 기록 및 3단계 문자 자동 발송
             PenaltyRequestDto penaltyDto = new PenaltyRequestDto();
             penaltyDto.setMemberId(String.valueOf(r.getMemberId()));

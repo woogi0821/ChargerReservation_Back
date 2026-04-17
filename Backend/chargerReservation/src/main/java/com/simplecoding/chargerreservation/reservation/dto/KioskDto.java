@@ -14,6 +14,8 @@ public class KioskDto {
 
         @NotBlank(message = "핀번호 4자리를 입력 해주세요.")
         private String pin;
+
+        private String statId;
     }
 
     @Getter
@@ -23,12 +25,16 @@ public class KioskDto {
 
         @NotBlank(message = "핀번호 4자리를 입력 해주세요.")
         private String pin;
+
+        private String statId;
     }
 
     @Getter
     public static class EndRequest {
         @NotBlank(message = "충전기 ID가 필요합니다.")
         private String chargerId;
+
+        private String statId;
     }
 
     @Getter
@@ -36,6 +42,7 @@ public class KioskDto {
     public static class StatusResponse {
         private String chargerId;
         private String status;
+        private String statId;
         private LocalDateTime startTime;
         private LocalDateTime endTime;
     }

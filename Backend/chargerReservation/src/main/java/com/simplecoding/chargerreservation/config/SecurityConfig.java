@@ -52,6 +52,8 @@ public class SecurityConfig {
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .requestMatchers("/api/stations/**").permitAll()
                 .requestMatchers("/api/admin/**", "/admin/**").hasAuthority("Y")
+                .requestMatchers("/ws-charger/**").permitAll()
+                .requestMatchers("/kiosk/**").permitAll()
                 .requestMatchers("/").permitAll()
                 .anyRequest().authenticated() // 그 외 모든 요청은 토큰이 있어야 함
             )

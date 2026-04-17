@@ -37,7 +37,7 @@ public class KioskService {
         ).orElseThrow(()-> new ResponseStatusException(HttpStatus.UNAUTHORIZED,"핀번호가 일치하지 않거나 유효한 예약이 없습니다."));
         reservation.changeStatus("CHARGING");
 
-        chargerSocketController.pushStatus(req.getChargerId(),"CHARGING");
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(),"CHARGING");
         log.info("웹소켓 푸시 완료 - chargerId : {}, status : CHARGING", req.getChargerId());
     }
     //충전 종료
@@ -52,7 +52,7 @@ public class KioskService {
         sendPenaltyNotice(reservation, 1, "충전 시간 만료");
 
         //키오스크의 상태를 WebSocket 푸쉬
-        chargerSocketController.pushStatus(req.getChargerId(), "DONE");
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "DONE");
         log.info("충전 종료 - 충전기 : {}", req.getChargerId());
     }
     //충전 종료 버튼 -> 실제 종료 시각 기록 + 상태변경
@@ -65,7 +65,7 @@ public class KioskService {
         //endCharging()으로 상태 + actualEndTime 동시 기록
         reservation.endCharging("COMPLETED", LocalDateTime.now());
         sendPenaltyNotice(reservation, 1, "사용자 직접 종료 및 출차 확인");
-        chargerSocketController.pushStatus(req.getChargerId(), "COMPLETED");
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "COMPLETED");
         log.info("충전 조기 종료 - 충전기 : {}", req.getChargerId());
     }
 //     [공통 로직] 패널티 서비스 호출 및 문자 발송 요청
