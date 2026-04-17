@@ -62,8 +62,6 @@ class AdminServiceTest {
     @InjectMocks
     private AdminService adminService;
 
-    // ── 테스트용 헬퍼 ────────────────────────────────────────────────────────────
-
     private Admin createAdmin(Long adminId, Long memberId, String role) {
         Admin admin = new Admin(memberId, role);
         ReflectionTestUtils.setField(admin, "adminId", adminId);
@@ -430,28 +428,16 @@ class AdminServiceTest {
     }
 
     @Test
-    @DisplayName("패널티 목록 조회 — 성공 : INQUIRY 파트")
-    void getPenaltyList_성공_INQUIRY파트() {
+    @DisplayName("패널티 목록 조회 — 성공 : 모든 파트 조회 가능")
+    void getPenaltyList_성공_다른파트() {
+        // ✅ 수정 — 조회 권한 체크 제거로 모든 파트 조회 가능
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("INQUIRY");
+        mockRequester.updatePart("RESERVATION");
         PenaltyHistory p1 = createPenalty(1L, PenaltyStatus.ACTIVE);
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(penaltyRepository.findAll()).thenReturn(List.of(p1));
             assertEquals(1, adminService.getPenaltyList().size());
-        }
-    }
-
-    @Test
-    @DisplayName("패널티 목록 조회 — 실패 : 권한 없음 (403)")
-    void getPenaltyList_실패_권한없음() {
-        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("RESERVATION");
-        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
-            mockRequesterChain(securityUtil, mockRequester);
-            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-                    () -> adminService.getPenaltyList());
-            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
         }
     }
 
@@ -530,28 +516,16 @@ class AdminServiceTest {
     }
 
     @Test
-    @DisplayName("예약 목록 조회 — 성공 : RESERVATION 파트")
-    void getReservationList_성공_RESERVATION파트() {
+    @DisplayName("예약 목록 조회 — 성공 : 모든 파트 조회 가능")
+    void getReservationList_성공_다른파트() {
+        // ✅ 수정 — 조회 권한 체크 제거로 모든 파트 조회 가능
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("RESERVATION");
+        mockRequester.updatePart("INQUIRY");
         Reservation r1 = createReservation(1L, "RESERVED");
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(reservationRepository.findAll()).thenReturn(List.of(r1));
             assertEquals(1, adminService.getReservationList().size());
-        }
-    }
-
-    @Test
-    @DisplayName("예약 목록 조회 — 실패 : 권한 없음 (403)")
-    void getReservationList_실패_권한없음() {
-        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("INQUIRY");
-        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
-            mockRequesterChain(securityUtil, mockRequester);
-            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-                    () -> adminService.getReservationList());
-            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
         }
     }
 
@@ -781,34 +755,24 @@ class AdminServiceTest {
             mockRequesterChain(securityUtil, mockRequester);
             when(stationRepository.findAll(any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(s1, s2)));
-            assertEquals(2, adminService.getStationList().size());
+            // ✅ 수정 — null 파라미터 추가
+            assertEquals(2, adminService.getStationList(null).size());
         }
     }
 
     @Test
-    @DisplayName("충전소 목록 조회 — 성공 : CHARGER 파트")
-    void getStationList_성공_CHARGER파트() {
+    @DisplayName("충전소 목록 조회 — 성공 : 모든 파트 조회 가능")
+    void getStationList_성공_다른파트() {
+        // ✅ 수정 — 조회 권한 체크 제거로 모든 파트 조회 가능
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("CHARGER");
+        mockRequester.updatePart("MEMBER");
         StationEntity s1 = createStation("ST001");
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(stationRepository.findAll(any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(s1)));
-            assertEquals(1, adminService.getStationList().size());
-        }
-    }
-
-    @Test
-    @DisplayName("충전소 목록 조회 — 실패 : 권한 없음 (403)")
-    void getStationList_실패_권한없음() {
-        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("MEMBER");
-        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
-            mockRequesterChain(securityUtil, mockRequester);
-            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-                    () -> adminService.getStationList());
-            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+            // ✅ 수정 — null 파라미터 추가
+            assertEquals(1, adminService.getStationList(null).size());
         }
     }
 
@@ -839,19 +803,6 @@ class AdminServiceTest {
             mockRequesterChain(securityUtil, mockRequester);
             when(chargerRepository.findByStatId("ST001")).thenReturn(List.of(c1));
             assertEquals(1, adminService.getChargerList("ST001").size());
-        }
-    }
-
-    @Test
-    @DisplayName("충전기 목록 조회 — 실패 : 권한 없음 (403)")
-    void getChargerList_실패_권한없음() {
-        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("MEMBER");
-        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
-            mockRequesterChain(securityUtil, mockRequester);
-            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-                    () -> adminService.getChargerList(null));
-            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
         }
     }
 
@@ -918,28 +869,16 @@ class AdminServiceTest {
     }
 
     @Test
-    @DisplayName("문의 목록 조회 — 성공 : INQUIRY 파트")
-    void getInquiryList_성공_INQUIRY파트() {
+    @DisplayName("문의 목록 조회 — 성공 : 모든 파트 조회 가능")
+    void getInquiryList_성공_다른파트() {
+        // ✅ 수정 — 조회 권한 체크 제거로 모든 파트 조회 가능
         Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("INQUIRY");
+        mockRequester.updatePart("RESERVATION");
         Inquiry i1 = createInquiry(1L, "PENDING");
         try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
             mockRequesterChain(securityUtil, mockRequester);
             when(inquiryRepository.findAll()).thenReturn(List.of(i1));
             assertEquals(1, adminService.getInquiryList().size());
-        }
-    }
-
-    @Test
-    @DisplayName("문의 목록 조회 — 실패 : 권한 없음 (403)")
-    void getInquiryList_실패_권한없음() {
-        Admin mockRequester = createAdmin(1L, 1L, "MANAGER");
-        mockRequester.updatePart("RESERVATION");
-        try (MockedStatic<SecurityUtil> securityUtil = mockStatic(SecurityUtil.class)) {
-            mockRequesterChain(securityUtil, mockRequester);
-            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-                    () -> adminService.getInquiryList());
-            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
         }
     }
 
@@ -1020,25 +959,18 @@ class AdminServiceTest {
     @Test
     @DisplayName("대시보드 통계 조회 — 성공")
     void getDashboardStats_성공() {
-        // 회원 2명
         when(memberRepository.count()).thenReturn(2L);
 
-        // 오늘 예약 1건
         Reservation r1 = createReservation(1L, "RESERVED");
         when(reservationRepository.findByStartTimeBetween(
                 any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of(r1));
 
-        // 충전소 3개
         when(stationRepository.count()).thenReturn(3L);
 
-        // 충전기 전체 중 고장(4) 1개 / 점검(5) 1개
-        ChargerEntity c1 = createCharger("ST001", "C001", "4");
-        ChargerEntity c2 = createCharger("ST001", "C002", "5");
-        ChargerEntity c3 = createCharger("ST001", "C003", "2");
-        when(chargerRepository.findAll()).thenReturn(List.of(c1, c2, c3));
+        // ✅ 수정 — countByStatIn 으로 변경
+        when(chargerRepository.countByStatIn(any())).thenReturn(2L);
 
-        // 미답변 문의 1건
         Inquiry i1 = createInquiry(1L, "PENDING");
         when(inquiryRepository.findByStatus("PENDING")).thenReturn(List.of(i1));
 
