@@ -12,6 +12,7 @@ import com.simplecoding.chargerreservation.member.entity.MemberToken;
 import com.simplecoding.chargerreservation.member.repository.EmailVerificationRepository;
 import com.simplecoding.chargerreservation.member.repository.MemberRepository;
 import com.simplecoding.chargerreservation.member.repository.MemberTokenRepository;
+import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -28,6 +29,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final MemberTokenRepository memberTokenRepository;
     private final EmailVerificationRepository emailVerificationRepository;
+    private final ReservationRepository reservationRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final AdminRepository adminRepository;
@@ -78,9 +80,8 @@ public class MemberService {
     @Transactional
     public void withdrawMember(String loginId) {
         Member member = getCurrentMember();
-        member.setStatus("WITHDRAWN");
-
-        // TODO: 예약 관련 테이블 및 데이터 처리 로직 설계 예정
+        reservationRepository.cancelAllByMemberId(member.getMemberId());     // 예약 취소
+        member.setStatus("WITHDRAWN");                                       // 회원 상태 변경
         memberTokenRepository.deleteByMember(member);
 
         log.info("회원 탈퇴 처리 완료: {}", loginId);
@@ -95,6 +96,9 @@ public class MemberService {
 
         if (!passwordEncoder.matches(password, member.getLoginPw())) {
             throw new RuntimeException("아이디 또는 비밀번호가 일치하지 않습니다.");
+        }
+        if (!"ACTIVE".equals(member.getStatus())) {
+            throw new RuntimeException("해당 계정은 사용할 수 없는 상태입니다.");
         }
 
         String accessToken = jwtTokenProvider.createAccessToken(member);
