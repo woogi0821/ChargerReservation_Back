@@ -8,6 +8,7 @@ import com.simplecoding.chargerreservation.member.service.MemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @Tag(name = "회원 API", description = "회원가입 / 로그인 / 로그아웃 / 회원정보 조회 및 수정 API")
 @Slf4j
@@ -79,9 +82,34 @@ public class MemberController {
 
     @Operation(summary = "토큰 재발급", description = "AccessToken 만료 시 RefreshToken 쿠키로 새 AccessToken 을 발급합니다")
     @PostMapping("/refresh")
-    public ResponseEntity<TokenDto> refresh(@CookieValue("refreshToken") String refreshToken) {
-        TokenDto newAccessToken = memberService.refreshAccessToken(refreshToken);
-        return ResponseEntity.ok(newAccessToken);
+    public ResponseEntity<?> refresh(
+        @CookieValue(value = "refreshToken", required = false) String refreshToken,
+        HttpServletResponse response) {
+
+        if (refreshToken == null || refreshToken.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body("재로그인이 필요합니다.");
+        }
+
+        try {
+            TokenDto tokenDto = memberService.refreshAccessToken(refreshToken);
+
+            ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokenDto.getRefreshToken())
+                .httpOnly(true)
+                .secure(false)                          // TODO: 로컬 환경 false, 배포 환경 true
+                .path("/")
+//                .maxAge(60 * 60 * 24 * 7) // 7일
+                .sameSite("Lax")
+                .build();
+
+            return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .body(tokenDto);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(e.getMessage());
+        }
     }
 
     @Operation(summary = "로그아웃", description = "DB 에서 RefreshToken 을 삭제하고 로그아웃합니다")
@@ -115,6 +143,42 @@ public class MemberController {
         memberService.modifyMember(memberDto);
         return ResponseEntity.ok("회원 정보가 수정되었습니다.");
     }
+
+    @Operation(
+        summary = "아이디 찾기",
+        description = "정보 일치 시 회원의 아이디 일부를 마스킹하여 반환합니다."
+    )
+    @PostMapping("/find-id")
+    public ResponseEntity<?> findId(@RequestBody MemberDto memberDto) {
+        try {
+            String maskedId = memberService.findLoginId(memberDto.getName(), memberDto.getEmail());
+
+            return ResponseEntity.ok(MemberDto.builder()
+                .loginId(maskedId)
+                .build());
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @Operation(
+        summary = "비밀번호 재설정 (임시 비밀번호 발송)",
+        description = "정보 일치 시 임시 비밀번호를 메일로 발송합니다."
+    )
+    @PostMapping("/find-pw")
+    public ResponseEntity<?> findPw(@RequestBody Map<String, String> requestData) {
+        try {
+            memberService.sendTempPassword(requestData);
+
+            return ResponseEntity.ok("임시 비밀번호가 메일로 발송되었습니다.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("서버 오류가 발생했습니다.");
+        }
+    }
+
 
     @Operation(summary = "회원 탈퇴", description = "현재 로그인한 회원을 탈퇴 처리합니다")
     @DeleteMapping("/me")

@@ -20,6 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.*;
 
 @Log4j2
 @Service
@@ -33,6 +37,12 @@ public class MemberService {
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final AdminRepository adminRepository;
+    private final EmailService emailService;
+
+    // 최신 리프레시 요청 저장소(중복 요청 방어용)
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private final Map<String, TokenDto> refreshCache = new ConcurrentHashMap<>();
+    private final Map<String, TokenDto> lastSuccessMap = new ConcurrentHashMap<>();
 
     /**==========================================
      * 회원 관리 (회원가입, 수정, 탈퇴)
@@ -75,6 +85,42 @@ public class MemberService {
         }
     }
 
+    // 아이디 찾기
+    public String findLoginId(String name, String email) {
+        Member member = memberRepository.findByNameAndEmail(name, email)
+            .orElseThrow(() -> new IllegalArgumentException("일치하는 회원이 없습니다."));
+
+        String loginId = member.getLoginId();
+
+        if (loginId.length() <= 4) {
+            return loginId.substring(0, 1) + "*".repeat(loginId.length() - 1);
+        }
+
+        return loginId.substring(0, 4) + "*".repeat(loginId.length() - 4);
+    }
+
+    // 비밀번호 찾기
+    @Transactional
+    public void sendTempPassword(Map<String, String> requestData) {
+        String loginId = requestData.get("loginId");
+        String phone = requestData.get("phone");
+        String email = requestData.get("email");
+
+        Member member = memberRepository.findByLoginIdAndPhoneAndEmail(loginId, phone, email)
+            .orElseThrow(() -> new IllegalArgumentException("입력하신 정보와 일치하는 회원이 없습니다."));
+
+        String tempPw = UUID.randomUUID().toString().substring(0, 8);
+        String encodedPw = passwordEncoder.encode(tempPw);
+        member.updatePassword(encodedPw);
+
+        String subject = "[ChargeNow] 임시 비밀번호 발송 안내";
+        String content = member.getName() + "님, 안녕하세요.\n\n" +
+            "요청하신 임시 비밀번호는 [ " + tempPw + " ] 입니다.\n" +
+            "로그인 후 마이페이지에서 반드시 비밀번호를 변경해 주세요.";
+
+        emailService.sendMail(email, subject, content);
+    }
+
     // 회원 탈퇴
     @Transactional
     public void withdrawMember(String loginId) {
@@ -82,8 +128,6 @@ public class MemberService {
         reservationRepository.cancelAllByMemberId(member.getMemberId());     // 예약 취소
         member.setStatus("WITHDRAWN");                                       // 회원 상태 변경
         memberTokenRepository.deleteByMember(member);
-
-        log.info("회원 탈퇴 처리 완료: {}", loginId);
     }
 
     /**==========================================
@@ -142,25 +186,48 @@ public class MemberService {
     // 토큰 재발급
     @Transactional
     public TokenDto refreshAccessToken(String refreshToken) {
+        if (refreshCache.containsKey(refreshToken)) {
+            return refreshCache.get(refreshToken);
+        }
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             throw new RuntimeException("리프레시 토큰이 만료되었습니다. 다시 로그인하세요.");
         }
 
-        MemberToken memberToken = memberTokenRepository.findByRefreshToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("DB에 존재하지 않는 토큰입니다."));
+        String loginId = jwtTokenProvider.getLoginId(refreshToken);
 
-        Member member = memberToken.getMember();
-        String newAt = jwtTokenProvider.createAccessToken(member);
-        String newRt = jwtTokenProvider.createRefreshToken(member.getLoginId());
+        Optional<MemberToken> memberTokenOpt = memberTokenRepository.findByRefreshToken(refreshToken);
 
-        memberToken.setRefreshToken(newRt);
-        memberToken.setExpiresAt(LocalDateTime.now().plusDays(7));
+        if (memberTokenOpt.isPresent()) {
+            MemberToken memberToken = memberTokenOpt.get();
+            Member member = memberToken.getMember();
 
-        return TokenDto.builder()
+            String newAt = jwtTokenProvider.createAccessToken(member);
+            String newRt = jwtTokenProvider.createRefreshToken(member.getLoginId());
+
+            TokenDto response = TokenDto.builder()
                 .grantType("Bearer")
                 .accessToken(newAt)
                 .refreshToken(newRt)
                 .build();
+
+            refreshCache.put(refreshToken, response);
+            lastSuccessMap.put(loginId, response);
+
+            scheduler.schedule(() -> refreshCache.remove(refreshToken), 3, TimeUnit.SECONDS);
+            scheduler.schedule(() -> lastSuccessMap.remove(loginId), 1, TimeUnit.MINUTES);
+
+            // DB 업데이트
+            memberToken.setRefreshToken(newRt);
+            memberToken.setExpiresAt(LocalDateTime.now().plusDays(7));
+
+            return response;
+        }
+
+        if (lastSuccessMap.containsKey(loginId)) {
+            return lastSuccessMap.get(loginId);
+        }
+
+        throw new RuntimeException("유효하지 않은 인증 정보입니다.");
     }
 
     // 로그아웃

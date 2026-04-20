@@ -81,6 +81,20 @@ public class JwtTokenProvider {
         return false;
     }
 
+    // 토큰에서 LoginID 추출하는 메서드
+    public String getLoginId(String token) {
+        try {
+            return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
+        } catch (ExpiredJwtException e) {
+            return e.getClaims().getSubject();
+        }
+    }
+
     // JWT 토큰을 복호화해서 유저 정보(Authentication)를 꺼내는 메서드
     public Authentication getAuthentication(String accessToken) {
         Claims claims = parseClaims(accessToken);
@@ -90,7 +104,6 @@ public class JwtTokenProvider {
             throw new RuntimeException("권한 정보가 없는 토큰입니다.");
         }
 
-        // ✅ 수정된 부분 - "Y" 단순 문자열로 바로 권한 등록
         Collection<? extends GrantedAuthority> authorities =
                 List.of(new SimpleGrantedAuthority(roleClaim.toString().trim()));
 

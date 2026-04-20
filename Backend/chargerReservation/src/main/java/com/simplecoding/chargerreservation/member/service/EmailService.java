@@ -54,6 +54,16 @@ public class EmailService {
         mailSender.send(message);
     }
 
+    public void sendMail(String email, String subject, String content) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(email);
+        message.setFrom(senderEmail);
+        message.setSubject(subject);
+        message.setText(content);
+
+        mailSender.send(message);
+    }
+
     // 인증 번호 확인
     @Transactional(noRollbackFor = IllegalArgumentException.class)
     public void verifyCode(EmailRequestDto.Verify request) {
