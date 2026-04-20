@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/member/join", "/api/member/check-id","/api/email/**").permitAll()
                 .requestMatchers("/api/member/login", "/api/member/refresh").permitAll()
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                .requestMatchers("/api/member/find-id", "/api/member/find-pw").permitAll()
                 .requestMatchers("/api/stations/**").permitAll()
                 .requestMatchers("/api/admin/**", "/admin/**").hasAuthority("Y")
                 .requestMatchers("/ws-charger/**").permitAll()
