@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -50,7 +51,8 @@ public class ReservationService {
         }
         int durationHours = "RAPID".equalsIgnoreCase(req.getChargerType()) ? 1 : 7;
         LocalDateTime estimatedEndTime = req.getStartTime().plusHours(durationHours);
-        String generatedPin = String.format("%04d", (int) (Math.random() * 10000));
+        SecureRandom secureRandom = new SecureRandom();
+        String generatedPin = String.format("%06d", secureRandom.nextInt(1000000));
 
         Reservation reservation = Reservation.builder()
                 .memberId(memberId)
@@ -64,8 +66,7 @@ public class ReservationService {
                 .build();
 
         Reservation savedReservation = reservationRepository.save(reservation);
-        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "RESERVED");
-        chargerSocketController.pushNewReservation(req.getStatId(), req.getChargerId());
+
 
         try {
             Member member = memberRepository.findById(memberId)
@@ -82,6 +83,9 @@ public class ReservationService {
         } catch (Exception e) {
             log.warn("PIN SMS 발송 실패 (예약 ID : {}) : {}", savedReservation.getId(), e.getMessage());
         }
+
+        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "RESERVED");
+        chargerSocketController.pushNewReservation(req.getStatId(), req.getChargerId());
 
         return ReservationDto.Response.builder()
                 .id(savedReservation.getId())
@@ -127,11 +131,35 @@ public class ReservationService {
                     "취소가능한 상태가 아닙니다. (현재 상태 : " + reservation.getStatus() + ")");
         }
         reservation.changeStatus("CANCELED");
+        chargerSocketController.pushStatus(reservation.getStatId(), reservation.getChargerId(), "AVAILABLE");
     }
 
     public boolean isChargerAvailable(String chargerId) {
         LocalDateTime graceDeadline = LocalDateTime.now().minusMinutes(15);
         return !reservationRepository.isChargerCurrentlyOccupied(chargerId, graceDeadline);
+    }
+
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void sendNoShowAlertSms() {
+        LocalDateTime targetTime = LocalDateTime.now().minusMinutes(1);
+        List<Reservation> targets = reservationRepository.findNoShowAlertTargets(targetTime);
+
+        targets.forEach(r -> {
+            try {
+                memberRepository.findById(r.getMemberId()).ifPresent(member -> smsService.sendPenaltyMessage(
+                        member.getPhone(),
+                        member.getName(),
+                        "노쇼 위험 - 15분 내 충전 미시작",
+                        "15분 후 자동 취소 및 패널티 부여"
+                )
+                );
+                r.markAlertAsSent();
+                log.info("노쇼 경고 SMS 발송 완료 - 예약ID = {}", r.getId());
+            } catch (Exception e) {
+                log.warn("노쇼 경고 SMS발송 실패 - 예약ID = {}", r.getId(), e.getMessage());
+            }
+        });
     }
 
     // 노쇼 처리: 예약 시간 15분 경과 후에도 RESERVED 상태면 NO_SHOW로 변경 + 패널티 부여
