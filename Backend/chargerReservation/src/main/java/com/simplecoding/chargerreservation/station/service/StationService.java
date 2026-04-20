@@ -7,6 +7,7 @@ import com.simplecoding.chargerreservation.station.dto.StationDto;
 import com.simplecoding.chargerreservation.station.dto.StationStatsDto;
 import com.simplecoding.chargerreservation.station.repository.MarkerProjection;
 import com.simplecoding.chargerreservation.station.repository.StationRepository;
+import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository; // ✅ 추가
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
@@ -31,19 +32,22 @@ public class StationService {
     private final JdbcTemplate jdbcTemplate;
     private final StationRepository stationRepository;
     private final com.simplecoding.chargerreservation.charger.repository.ChargerRepository chargerRepository;
+    private final ReservationRepository reservationRepository; // ✅ 추가
     private final MapStruct mapStruct;
 
     // ==========================================
     // 1. 데이터 조회 및 검색 로직 (사용자 API용)
     // ==========================================
 
-    // ✅ 추가 — 메인페이지 통계용
+    // ✅ 수정 — 메인페이지 통계용
     @Transactional(readOnly = true)
     public StationStatsDto getStationStats() {
         long totalStations     = stationRepository.count();
         long totalChargers     = chargerRepository.count();
         long availableChargers = chargerRepository.countByStat("2");
-        return new StationStatsDto(totalStations, totalChargers, availableChargers);
+        long chargingCount     = chargerRepository.countByStat("3");         // ✅ 추가 — 충전 중
+        long reservedCount     = reservationRepository.countByStatus("RESERVED"); // ✅ 추가 — 예약 중
+        return new StationStatsDto(totalStations, totalChargers, availableChargers, chargingCount, reservedCount);
     }
 
     @Transactional(readOnly = true)
