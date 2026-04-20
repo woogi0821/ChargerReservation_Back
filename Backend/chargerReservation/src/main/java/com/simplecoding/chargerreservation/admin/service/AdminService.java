@@ -28,6 +28,9 @@ import com.simplecoding.chargerreservation.reservation.entity.Reservation;
 import com.simplecoding.chargerreservation.reservation.repository.ReservationRepository;
 import com.simplecoding.chargerreservation.station.repository.StationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -235,14 +238,15 @@ public class AdminService {
     }
 
     // ── 공지사항 목록 조회 (관리자면 누구나 가능) ─────────────────────────────────
-    public List<AdminNoticeDto> getNoticeList() {
-        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
+    public Page<AdminNoticeDto> getNoticeList(int page) {
         getRequesterAdmin();
-        return noticeRepository.findAll()
-                .stream()
-                .filter(n -> n.getDeleteYn().equals("N"))
-                .map(AdminNoticeDto::from)
-                .collect(Collectors.toList());
+
+        // 10개씩 페이징 처리 (JPA는 0페이지부터 시작)
+        Pageable pageable = PageRequest.of(page, 10);
+
+        // DB에서 [삭제 안됨 + 상단 고정순 + 최신순]으로 10개만 조회
+        return noticeRepository.findByDeleteYnOrderByFixYnDescInsertTimeDesc("N", pageable)
+                .map(AdminNoticeDto::from);
     }
 
     // ── 공지사항 등록 (SUPER / INQUIRY 파트만 가능) ───────────────────────────────

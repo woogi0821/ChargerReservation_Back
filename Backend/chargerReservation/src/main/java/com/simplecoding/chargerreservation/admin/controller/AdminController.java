@@ -13,6 +13,7 @@ import com.simplecoding.chargerreservation.admin.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -112,8 +113,11 @@ public class AdminController {
     // ── 공지사항 ──────────────────────────────────────────────────────────────────
     @Operation(summary = "공지사항 목록 조회", description = "관리자면 누구나 조회 가능합니다. 삭제된 공지는 제외됩니다")
     @GetMapping("/notices")
-    public ResponseEntity<List<AdminNoticeDto>> getNoticeList() {
-        return ResponseEntity.ok(adminService.getNoticeList());
+// List -> Page로 변경, page 파라미터 추가
+    public ResponseEntity<Page<AdminNoticeDto>> getNoticeList(
+            @RequestParam(defaultValue = "0") int page
+    ) {
+        return ResponseEntity.ok(adminService.getNoticeList(page));
     }
 
     @Operation(summary = "공지사항 등록", description = "SUPER / INQUIRY 파트만 가능. 새 공지사항을 등록합니다")
