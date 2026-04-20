@@ -32,17 +32,34 @@ public class KioskService {
 
     @Transactional
     public void startCharging(KioskDto.AuthRequest req) {
-        Reservation reservation = reservationRepository.findByChargerIdAndStatusAndReservationPin(
-                req.getChargerId(),"RESERVED", req.getPin()
-        ).orElseThrow(()-> new ResponseStatusException(HttpStatus.UNAUTHORIZED,"핀번호가 일치하지 않거나 유효한 예약이 없습니다."));
-        reservation.changeStatus("CHARGING");
+        try {
+            Reservation reservation = reservationRepository.findByChargerIdAndStatusAndReservationPin(
+                    req.getChargerId(), "RESERVED", req.getPin()
+            ).orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "핀번호가 일치하지 않거나 유효한 예약이 없습니다."));
+            reservation.changeStatus("CHARGING");
 
-        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(),"CHARGING");
-        log.info("웹소켓 푸시 완료 - chargerId : {}, status : CHARGING", req.getChargerId());
+            if (req.getStatId() == null) {
+                log.warn("statId가 null입니다 - WebSocket 푸시 생략 (chargerId : {})", req.getChargerId());
+            } else {
+                chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "CHARGING"); // ← DONE → CHARGING 수정
+            }
+            log.info("웹소켓 푸시 완료 - chargerId : {}, status : CHARGING", req.getChargerId());
+
+        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+            // 노쇼 스케줄러가 동시에 NO_SHOW로 바꾼 경우
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "예약 상태가 변경되었습니다. 다시 시도해주세요.");
+        }
     }
     //충전 종료
     @Transactional
     public void endCharging(KioskDto.EndRequest req){
+        if (req.getStatId() == null) {
+            log.warn("statId가 null입니다 - WebSocket 푸시 생략 (chargerId : {})", req.getChargerId());
+        } else {
+            chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "DONE");
+        }
+
         //해당 충전기의 CHARGING 상태 예약 조회
         Reservation reservation = reservationRepository
                 .findByChargerIdAndStatus(req.getChargerId(), "CHARGING")
@@ -59,6 +76,11 @@ public class KioskService {
     //물리적으로 충전기를 뽑는 행위를 버튼으로 표현
     @Transactional
     public void stopCharging(KioskDto.StopRequest req){
+        if (req.getStatId() == null){
+            log.warn("statId가 null입니다. - WebSocket 푸시 생략 (chargerId : {})", req.getChargerId());
+        } else {
+            chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "COMPLETED");
+        }
         Reservation reservation = reservationRepository
                 .findByChargerIdAndStatusAndReservationPin(req.getChargerId(),"CHARGING", req.getPin()
                 ).orElseThrow(()-> new ResponseStatusException(HttpStatus.BAD_REQUEST,"진행중인 충전이 없거나 핀번호가 일치하지 않습니다."));

@@ -40,7 +40,6 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         // Principal에서 사용자 정보 추출
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String email = extractEmail(oAuth2User);
-        log.info("OAuth2 로그인 성공(토큰발급): {}", email);
 
         // 회원 정보 조회
         Member member = memberRepository.findByEmail(email)

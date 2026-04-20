@@ -21,6 +21,11 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     // 이메일인증 아이디 중복 확인
     boolean existsByEmail(String email);
 
+    // 회원정보찾기
+    Optional<Member> findByNameAndEmail(String name, String email);
+    Optional<Member> findByLoginIdAndPhoneAndEmail(String loginId, String phone, String email);
+
+    // 회원 탈퇴
     @Modifying
     @Query("UPDATE Reservation r SET r.status = 'CANCELLED' " +
         "WHERE r.member = :member AND r.status IN ('RESERVED')")
