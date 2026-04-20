@@ -109,7 +109,7 @@ public class PenaltyService {
 
             // 전송 성공 시 상태값 변경
             penalty.setNotiSentYn("Y");
-            log.info("✅ 패널티 {}단계 문자 발송 성공: 대상={},사유={}, 제한={}", penalty.getNudgeCount(), name, reason, until);
+            log.info("패널티 {}단계 문자 발송 성공: 대상={},사유={}, 제한={}", penalty.getNudgeCount(), name, reason, until);
             // 2. 웹 알림 저장 (새로 추가할 부분)
             notificationService.createNotification(
                     member,
@@ -118,11 +118,9 @@ public class PenaltyService {
                     NotiType.PENALTY,
                     "/mypage/penalty"
             );
-            penalty.setNotiSentYn("Y");
-            log.info("✅ 패널티 알림 통합 발송 성공: 대상={}", name);
 
         } catch (Exception e) {
-            log.error("❌ 패널티 문자 발송 실패: {}", e.getMessage());
+            log.error("패널티 문자 발송 실패: {}", e.getMessage());
             penalty.setNotiSentYn("N"); // 실패 시 N으로 기록
         }
     }
@@ -152,29 +150,39 @@ public class PenaltyService {
         if (!"RESERVED".equals(res.getStatus())) {
             throw new IllegalStateException("이미 처리되었거나 취소된 예약입니다.");
         }
+        try {
 
-        // 3. 문자 발송 (SmsService 호출)
-        // (주의: Member 연관관계가 설정되어 있어야 res.getMember() 사용 가능)
-        smsService.sendPenaltyMessage(
+
+            // 3. 문자 발송 (SmsService 호출)
+            // (주의: Member 연관관계가 설정되어 있어야 res.getMember() 사용 가능)
+            smsService.sendPenaltyMessage(
 // *******   Merge후 꼭 확인 (getName, getPhone 이름 동일한지) **************************
-                res.getMember().getPhone(),
-                res.getMember().getName(),
-                "관리자 부여 패널티 안내",
-                reason
-        );
+                    res.getMember().getPhone(),
+                    res.getMember().getName(),
+                    "관리자 부여 패널티 안내",
+                    reason
+            );
 
-        // 4. DB 상태 업데이트
-        res.changeStatus("CANCELLED_PENALTY"); // 관리자가 직접 준 패널티라는 뜻
-        res.markAlertAsSent(); // 스케줄러가 또 건드리지 못하게 마킹
+            // 4. 웹 알림 생성
+            notificationService.createNotification(
+                    res.getMember(),
+                    "패널티 안내",
+                    "장기 점유로 인해 오늘 자정까지 이용이 제한됩니다.",
+                    NotiType.PENALTY,
+                    "/mypage/penalty"
+            );
+            log.info("관리자 수동 패널티 알림 발송 성공 - 예약ID:{}", reservationId);
+        } catch (Exception e) {
+            // 통신 장애 등이 발생해도 로그를 남기고 다음 로직(상태 변경)을 진행하거나,
+            // 비즈니스 정책에 따라 예외를 다시 던질 수 있습니다.
+            log.error(" 관리자 패널티 알림 발송 중 오류 발생: {}", e.getMessage());
+            throw new RuntimeException("알림 서비스 장애로 패널티 처리에 실패했습니다. 다시 시도해주세요.", e);
+        }
+        // 5. DB 상태 업데이트 (알림 발송 여부와 상관없이 상태는 변경)
+        res.changeStatus("CANCELLED_PENALTY");
+        res.markAlertAsSent();
 
-        // 패널티 발송 로직 끝부분에 추가
-        notificationService.createNotification(
-                res.getMember(),
-                "패널티 안내",
-                "장기 점유로 인해 오늘 자정까지 이용이 제한됩니다.",
-                NotiType.PENALTY,
-                "/mypage/penalty"
-        );
+        log.info("예약 상태 변경 완료 (CANCELLED_PENALTY) - 예약ID: {}", reservationId);
     }
 
 }
