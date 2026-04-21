@@ -37,9 +37,12 @@ public class NotificationService {
 
     // 1. 특정 사용자의 알림 목록 조회 (최신순)
     @Transactional(readOnly = true) // 이 메서드가 끝날 때 변경사항을 자동으로 반영
-    public List<NotificationResponseDto> getMyNotifications(String email) {
-        return notificationRepository.findByMemberEmailOrderByCreatedAtDesc(email)
-                .stream().map(noti -> NotificationResponseDto.builder() // db에서 가져온 엔티티를 화면 전달용인 dto로 하나하나 변환하는 과정
+    public List<NotificationResponseDto> getMyNotifications(String loginId) {
+
+
+        // ✅ Repository의 새 메서드 호출
+        return notificationRepository.findByMemberLoginId(loginId)
+                .stream().map(noti -> NotificationResponseDto.builder()
                         .notiId(noti.getNotiId())
                         .title(noti.getTitle())
                         .message(noti.getMessage())
@@ -47,7 +50,7 @@ public class NotificationService {
                         .targetUrl(noti.getTargetUrl())
                         .isRead(noti.getIsRead())
                         .createdAt(noti.getCreatedAt().toString())
-                        .build()  // 생성자보다 안전하고 가독성좋게 데이터를 dto에 담아줌
+                        .build()
                 ).collect(Collectors.toList());
     }
 

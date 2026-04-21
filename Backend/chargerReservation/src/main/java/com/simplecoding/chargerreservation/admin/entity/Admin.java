@@ -12,7 +12,13 @@ import lombok.NoArgsConstructor;
 public class Admin extends BaseTimeEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(
+            name = "admin_seq_gen",
+            sequenceName = "ADMIN_SEQ",
+            initialValue = 1,
+            allocationSize = 1
+    )
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "admin_seq_gen")
     @Column(name = "ADMIN_ID")
     private Long adminId;
 
