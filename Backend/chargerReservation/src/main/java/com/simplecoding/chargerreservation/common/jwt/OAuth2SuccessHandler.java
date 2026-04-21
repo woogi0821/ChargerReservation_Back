@@ -71,7 +71,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .httpOnly(true)
                 .secure(false) //aws배포시 true로 수정 로컬테스트 환경에서 false로
                 .path("/")
-                .maxAge(60 * 60 * 24 * 7)
+//                .maxAge(60 * 60 * 24 * 7)
                 .sameSite("Lax")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
