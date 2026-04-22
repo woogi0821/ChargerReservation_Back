@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 
 @Tag(name = "충전소 API", description = "충전소 조회 / 검색 / 마커 / 통계 API")
@@ -56,15 +57,25 @@ public class StationController {
         }
     }
 
-    @Operation(summary = "충전소 검색", description = "키워드와 현재 위치로 주변 충전소를 검색합니다")
+    @Operation(summary = "충전소 검색", description = "키워드와 현재 위치로 주변 충전소를 검색합니다 (작년 요금 비교 포함)")
     @GetMapping("/search")
     public ResponseEntity<List<StationDto>> searchStations(
-            @RequestParam String keyword,
+            @RequestParam(required = false) String keyword, // 키워드 없이 위치로만 검색할 경우 대비
             @RequestParam Double lat,
             @RequestParam Double lng) {
 
-        log.info("[검색] 키워드: {}, 위치: ({}, {})", keyword, lat, lng);
+        log.info("[검색 요청] 키워드: '{}', 위도: {}, 경도: {}", keyword, lat, lng);
+
+        // 1. 서비스 호출 (이미 MarkerProjection을 통해 요금 계산이 완료된 StationDto 리스트를 반환함)
         List<StationDto> results = stationService.searchStationsNearby(keyword, lat, lng);
+
+        // 2. 검색 결과가 없을 경우 204 No Content 대신 빈 리스트를 200 OK로 반환 (프론트엔드 처리 편의성)
+        if (results.isEmpty()) {
+            log.info("[검색 결과] 일치하는 충전소가 없습니다.");
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+
+        log.info("[검색 성공] 총 {}건의 충전소 발견", results.size());
         return ResponseEntity.ok(results);
     }
 

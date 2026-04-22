@@ -19,4 +19,21 @@ public interface MarkerProjection {
     Double getDistance();       // [핵심] DB에서 계산된 거리
     Double getCurrentPrice();
     Double getSlowPrice();    // ✨ 완속 추가
+    Double getLastCurrentPrice();
+    Double getLastSlowPrice();
+
+    default Double getPriceDiff() {
+        if (getCurrentPrice() != null && getLastCurrentPrice() != null) {
+            return getCurrentPrice() - getLastCurrentPrice();
+        }
+        return 0.0;
+    }
+
+    // 2. 완속 요금 차이 계산
+    default Double getSlowPriceDiff() {
+        if (getSlowPrice() != null && getLastSlowPrice() != null) {
+            return getSlowPrice() - getLastSlowPrice();
+        }
+        return 0.0;
+    }
 }

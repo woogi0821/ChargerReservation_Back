@@ -49,7 +49,7 @@ public class StationService {
         long reservedCount     = reservationRepository.countByStatus("RESERVED"); // ✅ 추가 — 예약 중
         return new StationStatsDto(totalStations, totalChargers, availableChargers, chargingCount, reservedCount);
     }
-
+// 마커
     @Transactional(readOnly = true)
     public List<MarkerDto> getStationMarkers(Double lat, Double lng) {
         double radius = 1.5;
@@ -75,7 +75,7 @@ public class StationService {
                 })
                 .collect(Collectors.toList());
     }
-
+// 목록
     @Transactional(readOnly = true)
     public List<StationDto> getStationsWithDistancePaged(Double lat, Double lng, int page) {
         int year = 2026;
@@ -192,7 +192,7 @@ public class StationService {
 
         return dto;
     }
-
+// 상세조회
     private void updateTypeStatus(StationDto dto, List<ChargerEntity> chargers, Set<String> brokenStats) {
         Map<String, List<ChargerEntity>> grouped = chargers.stream()
                 .collect(Collectors.groupingBy(c -> isFast(c.getChargerType()) ? "급속" : "완속"));
@@ -214,44 +214,57 @@ public class StationService {
     private boolean isFast(String type) {
         return !"02".equals(type);
     }
+// 검색
+@Transactional(readOnly = true)
+public List<StationDto> searchStationsNearby(String keyword, Double lat, Double lng) {
+    if (keyword == null || keyword.trim().isEmpty()) return List.of();
 
-    @Transactional(readOnly = true)
-    public List<StationDto> searchStationsNearby(String keyword, Double lat, Double lng) {
-        if (keyword == null || keyword.trim().isEmpty()) return List.of();
+    // 1. 검색 결과 호출
+    List<MarkerProjection> results = stationRepository.findNearbyByKeyword(keyword.trim(), lat, lng);
+    if (results.isEmpty()) return Collections.emptyList();
 
-        List<MarkerProjection> results = stationRepository.findNearbyByKeyword(keyword.trim(), lat, lng);
-        if (results.isEmpty()) return Collections.emptyList();
+    // 2. 실시간 충전기 정보 조회를 위한 ID 추출 및 데이터 벌크 조회
+    List<String> statIds = results.stream().map(MarkerProjection::getStatId).collect(Collectors.toList());
+    List<ChargerEntity> allChargers = chargerRepository.findByStatIdIn(statIds);
+    Map<String, List<ChargerEntity>> chargerMap = allChargers.stream()
+            .collect(Collectors.groupingBy(ChargerEntity::getStatId));
 
-        List<String> statIds = results.stream().map(MarkerProjection::getStatId).collect(Collectors.toList());
-        List<ChargerEntity> allChargers = chargerRepository.findByStatIdIn(statIds);
-        Map<String, List<ChargerEntity>> chargerMap = allChargers.stream()
-                .collect(Collectors.groupingBy(ChargerEntity::getStatId));
+    Set<String> fastTypes = Set.of("01", "03", "04", "05", "06", "08");
+    Set<String> brokenStats = Set.of("1", "4", "5");
 
-        Set<String> fastTypes = Set.of("01", "03", "04", "05", "06", "08");
-        Set<String> brokenStats = Set.of("1", "4", "5");
+    // 3. 데이터를 StationDto로 매핑
+    return results.stream()
+            .map(p -> {
+                // MapStruct로 기본 필드 자동 매핑
+                StationDto dto = mapStruct.toDto(p);
+                dto.setDistance(p.getDistance());
 
-        return results.stream()
-                .map(p -> {
-                    StationDto dto = mapStruct.toDto(p);
-                    dto.setDistance(p.getDistance());
+                // ✅ [요금 정보 세팅] MarkerProjection의 메서드를 호출하여 DTO에 담기
+                dto.setLastYearPrice(p.getLastCurrentPrice());
+                dto.setSlowLastYearPrice(p.getLastSlowPrice());
 
-                    List<ChargerEntity> chargers = chargerMap.getOrDefault(p.getStatId(), Collections.emptyList());
+                // ✅ [요금 계산값 세팅] 인터페이스가 미리 계산한 값을 그대로 사용
+                dto.setPriceDiff(p.getPriceDiff());
+                dto.setSlowPriceDiff(p.getSlowPriceDiff());
 
-                    int total = chargers.size();
-                    int available = (int) chargers.stream().filter(c -> "2".equals(c.getStat())).count();
-                    int broken = (int) chargers.stream().filter(c -> brokenStats.contains(c.getStat())).count();
-                    dto.setStatusInfo(available, total, broken);
+                // 4. 충전기 상태 계산 로직 (기존 유지)
+                List<ChargerEntity> chargers = chargerMap.getOrDefault(p.getStatId(), Collections.emptyList());
+                int total = chargers.size();
+                int available = (int) chargers.stream().filter(c -> "2".equals(c.getStat())).count();
+                int broken = (int) chargers.stream().filter(c -> brokenStats.contains(c.getStat())).count();
+                dto.setStatusInfo(available, total, broken);
 
-                    Map<Boolean, List<ChargerEntity>> split = chargers.stream()
-                            .collect(Collectors.partitioningBy(c -> fastTypes.contains(c.getChargerType())));
+                // 5. 급속/완속 타입별 상세 현황 분리
+                Map<Boolean, List<ChargerEntity>> split = chargers.stream()
+                        .collect(Collectors.partitioningBy(c -> fastTypes.contains(c.getChargerType())));
 
-                    processTypeDetail(dto, "급속", split.get(true), brokenStats);
-                    processTypeDetail(dto, "완속", split.get(false), brokenStats);
+                processTypeDetail(dto, "급속", split.get(true), brokenStats);
+                processTypeDetail(dto, "완속", split.get(false), brokenStats);
 
-                    return dto;
-                })
-                .collect(Collectors.toList());
-    }
+                return dto;
+            })
+            .collect(Collectors.toList());
+}
 
     private void processTypeDetail(StationDto dto, String type, List<ChargerEntity> list, Set<String> brokenStats) {
         if (list.isEmpty()) return;
