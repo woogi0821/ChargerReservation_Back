@@ -3,6 +3,8 @@ package com.simplecoding.chargerreservation.reservation.service;
 import com.simplecoding.chargerreservation.common.SmsService;
 import com.simplecoding.chargerreservation.member.entity.Member;
 import com.simplecoding.chargerreservation.member.repository.MemberRepository;
+import com.simplecoding.chargerreservation.notification.repository.NotificationRepository;
+import com.simplecoding.chargerreservation.notification.service.NotificationService;
 import com.simplecoding.chargerreservation.penalty.dto.PenaltyRequestDto;
 import com.simplecoding.chargerreservation.penalty.service.PenaltyService;
 import com.simplecoding.chargerreservation.reservation.dto.ReservationDto;
@@ -22,6 +24,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.simplecoding.chargerreservation.member.entity.QMember.member;
+
 @Log4j2
 @Service
 @RequiredArgsConstructor
@@ -33,6 +37,8 @@ public class ReservationService {
     private final MemberRepository memberRepository;
     private final SmsService smsService;
     private final PenaltyService penaltyService;
+    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public ReservationDto.Response createReservation(Long memberId, ReservationDto.Request req) {
@@ -67,21 +73,31 @@ public class ReservationService {
 
         Reservation savedReservation = reservationRepository.save(reservation);
 
+        // 1. 먼저 DB에서 회원 정보를 확실히 가져옵니다 (순서를 위로 올림)
+        Member memberEntity = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다."));
+        // 🔔 NotificationService를 사용하여 알림 저장
+        notificationService.createNotification(
+                memberEntity,
+                "⚡ 예약 완료",
+                "충전소 예약이 정상적으로 완료되었습니다. PIN: " + generatedPin,
+                com.simplecoding.chargerreservation.notification.entity.NotiType.RESERVATION,
+                "/mypage"
+        );
 
         try {
-            Member member = memberRepository.findById(memberId)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다."));
             smsService.sendPinMessage(
-                    member.getPhone(),
-                    member.getName(),
+                    memberEntity.getPhone(),
+                    memberEntity.getName(),
                     generatedPin,
                     savedReservation.getStartTime(),
                     savedReservation.getEndTime()
             );
-            log.info("PIN SMS 발송 완료 - 회원 : {}", member.getName());
+            log.info("PIN SMS 발송 완료 - 회원 : {}", memberEntity.getName());
+
         } catch (Exception e) {
-            log.warn("PIN SMS 발송 실패 (예약 ID : {}) : {}", savedReservation.getId(), e.getMessage());
+            log.warn("PIN SMS 발송 실패: {}", e.getMessage());
         }
 
         chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "RESERVED");
@@ -98,6 +114,7 @@ public class ReservationService {
                 .isAlertSent(savedReservation.getIsAlertSent())
                 .statId(savedReservation.getStatId())
                 .build();
+
     }
 
     public List<ReservationDto.Response> getMyReservations(Long memberId) {
