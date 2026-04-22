@@ -31,6 +31,7 @@ public class SmsService {
     }
 
     public void sendPenaltyMessage(String to, String name, String reason, String until) {
+        String cleanNumber = to.replaceAll("[^0-9]", ""); // 숫자 제외 모든 문자 제거
         Message message = new Message();
         message.setFrom(fromNumber);
         message.setTo(to);

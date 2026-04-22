@@ -4,6 +4,7 @@ import com.simplecoding.chargerreservation.common.SmsService;
 import com.simplecoding.chargerreservation.member.entity.Member;
 import com.simplecoding.chargerreservation.member.repository.MemberRepository;
 import com.simplecoding.chargerreservation.notification.repository.NotificationRepository;
+import com.simplecoding.chargerreservation.notification.service.NotificationService;
 import com.simplecoding.chargerreservation.penalty.dto.PenaltyRequestDto;
 import com.simplecoding.chargerreservation.penalty.service.PenaltyService;
 import com.simplecoding.chargerreservation.reservation.dto.ReservationDto;
@@ -37,6 +38,7 @@ public class ReservationService {
     private final SmsService smsService;
     private final PenaltyService penaltyService;
     private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public ReservationDto.Response createReservation(Long memberId, ReservationDto.Request req) {
@@ -75,42 +77,27 @@ public class ReservationService {
         Member memberEntity = memberRepository.findById(memberId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다."));
-        // 🔔 [추가 시작] 알림 생성 및 DB 저장
-        try {
-            // Notification 엔티티 생성 (프로젝트의 Notification 엔티티 필드명에 맞춰주세요)
-            com.simplecoding.chargerreservation.notification.entity.Notification notification =
-                    com.simplecoding.chargerreservation.notification.entity.Notification.builder()
-                            .member(memberEntity)
-                            .title("⚡ 예약 완료")
-                            .message("충전소 예약이 정상적으로 완료되었습니다.")
-                            .notiType(com.simplecoding.chargerreservation.notification.entity.NotiType.RESERVATION)
-                            .targetUrl("/mypage") // 알림 클릭 시 마이페이지로 이동
-                            .isRead("N")
-                            .createdAt(LocalDateTime.now())
-                            .build();
-
-            notificationRepository.save(notification);
-            log.info("알림 생성 완료 - 회원 ID: {}, 예약 ID: {}", memberId, savedReservation.getId());
-        } catch (Exception e) {
-            // 알림 생성이 실패해도 예약 프로세스에 영향을 주지 않도록 로그만 남깁니다.
-            log.error("알림 생성 중 오류 발생: {}", e.getMessage());
-        }
+        // 🔔 NotificationService를 사용하여 알림 저장
+        notificationService.createNotification(
+                memberEntity,
+                "⚡ 예약 완료",
+                "충전소 예약이 정상적으로 완료되었습니다. PIN: " + generatedPin,
+                com.simplecoding.chargerreservation.notification.entity.NotiType.RESERVATION,
+                "/mypage"
+        );
 
         try {
-            Member member = memberRepository.findById(memberId)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다."));
             smsService.sendPinMessage(
-                    member.getPhone(),
-                    member.getName(),
+                    memberEntity.getPhone(),
+                    memberEntity.getName(),
                     generatedPin,
                     savedReservation.getStartTime(),
                     savedReservation.getEndTime()
             );
-            log.info("PIN SMS 발송 완료 - 회원 : {}", member.getName());
+            log.info("PIN SMS 발송 완료 - 회원 : {}", memberEntity.getName());
 
         } catch (Exception e) {
-            log.warn("PIN SMS 발송 실패 (예약 ID : {}) : {}", savedReservation.getId(), e.getMessage());
+            log.warn("PIN SMS 발송 실패: {}", e.getMessage());
         }
 
         chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "RESERVED");
