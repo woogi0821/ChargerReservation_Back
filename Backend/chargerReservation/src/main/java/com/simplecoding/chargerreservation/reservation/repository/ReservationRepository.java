@@ -19,16 +19,20 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     Long countByMemberIdAndStatusIn(Long memberId, List<String> statuses);
 
+    // statId + chargerId 복합 조건으로 충전소별 독립 판단
     @Query("""
-    SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false  END 
+    SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END
     FROM Reservation r
     WHERE r.chargerId = :chargerId
-    AND(
-    r.status = 'CHARGING' OR (r.status = 'RESERVED' AND r.startTime > :graceDeadline)
+    AND r.statId = :statId
+    AND (
+        r.status = 'CHARGING'
+        OR (r.status = 'RESERVED' AND r.startTime > :graceDeadline)
     )
 """)
     boolean isChargerCurrentlyOccupied(
             @Param("chargerId") String chargerId,
+            @Param("statId") String statId,
             @Param("graceDeadline") LocalDateTime graceDeadline
     );
 

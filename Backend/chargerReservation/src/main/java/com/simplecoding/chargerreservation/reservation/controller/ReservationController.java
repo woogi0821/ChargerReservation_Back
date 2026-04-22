@@ -51,11 +51,13 @@ public class ReservationController {
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "충전기 가용 여부 조회", description = "chargerId 로 해당 충전기의 현재 예약 가능 여부를 조회합니다")
+    @Operation(summary = "충전기 가용 여부 조회", description = "statId + chargerId 로 해당 충전기의 현재 예약 가능 여부를 조회합니다")
     @GetMapping("/available")
-    public ResponseEntity<Boolean> isChargerAvailable(@RequestParam String chargerId) {
-        log.info("충전기 가용 여부 조회 - 충전기 ID : {}", chargerId);
-        return ResponseEntity.ok(reservationService.isChargerAvailable(chargerId));
+    public ResponseEntity<Boolean> isChargerAvailable(
+            @RequestParam String chargerId,
+            @RequestParam String statId) {
+        log.info("충전기 가용 여부 조회 - 충전소 : {}, 충전기 : {}", statId, chargerId);
+        return ResponseEntity.ok(reservationService.isChargerAvailable(chargerId, statId));
     }
 
     @Operation(summary = "예약 단건 조회", description = "예약 ID 와 회원 ID 로 본인 예약 상세 정보를 조회합니다")

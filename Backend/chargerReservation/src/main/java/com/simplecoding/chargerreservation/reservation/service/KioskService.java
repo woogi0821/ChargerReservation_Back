@@ -51,26 +51,24 @@ public class KioskService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "예약 상태가 변경되었습니다. 다시 시도해주세요.");
         }
     }
-    //충전 종료
+    //충전 종료 (시간 만료 - 관리자/시스템 측 종료)
     @Transactional
     public void endCharging(KioskDto.EndRequest req){
-        if (req.getStatId() == null) {
-            log.warn("statId가 null입니다 - WebSocket 푸시 생략 (chargerId : {})", req.getChargerId());
-        } else {
-            chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "DONE");
-        }
-
         //해당 충전기의 CHARGING 상태 예약 조회
         Reservation reservation = reservationRepository
                 .findByChargerIdAndStatus(req.getChargerId(), "CHARGING")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "충전 중인 예약을 찾을 수 없습니다."));
         //Entity의 endCharging()호출 -> status=DONE + actualEndTime = 현재시간 기록
         reservation.endCharging("DONE", LocalDateTime.now());
-        sendPenaltyNotice(reservation, 1, "충전 시간 만료");
 
-        //키오스크의 상태를 WebSocket 푸쉬
-        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "DONE");
+        // 키오스크의 상태를 WebSocket 푸시 (1회만)
+        if (req.getStatId() == null) {
+            log.warn("statId가 null입니다 - WebSocket 푸시 생략 (chargerId : {})", req.getChargerId());
+        } else {
+            chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "DONE");
+        }
         log.info("충전 종료 - 충전기 : {}", req.getChargerId());
+        // ※ 미출차 패널티는 별도 이벤트(출차 미확인 감지)에서만 부여 - 정상 종료 시 패널티 없음
     }
     //충전 종료 버튼 -> 실제 종료 시각 기록 + 상태변경
     //물리적으로 충전기를 뽑는 행위를 버튼으로 표현
@@ -86,9 +84,15 @@ public class KioskService {
                 ).orElseThrow(()-> new ResponseStatusException(HttpStatus.BAD_REQUEST,"진행중인 충전이 없거나 핀번호가 일치하지 않습니다."));
         //endCharging()으로 상태 + actualEndTime 동시 기록
         reservation.endCharging("COMPLETED", LocalDateTime.now());
-        sendPenaltyNotice(reservation, 1, "사용자 직접 종료 및 출차 확인");
-        chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "COMPLETED");
+
+        // 키오스크의 상태를 WebSocket 푸시 (1회만)
+        if (req.getStatId() == null) {
+            log.warn("statId가 null입니다 - WebSocket 푸시 생략 (chargerId : {})", req.getChargerId());
+        } else {
+            chargerSocketController.pushStatus(req.getStatId(), req.getChargerId(), "COMPLETED");
+        }
         log.info("충전 조기 종료 - 충전기 : {}", req.getChargerId());
+        // ※ 미출차 패널티는 별도 이벤트(출차 미확인 감지)에서만 부여 - 정상 종료 시 패널티 없음
     }
 //     [공통 로직] 패널티 서비스 호출 및 문자 발송 요청
 private void sendPenaltyNotice(Reservation r, int step, String reason) {
