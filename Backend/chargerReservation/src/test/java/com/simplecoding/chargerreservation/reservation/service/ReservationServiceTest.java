@@ -45,7 +45,7 @@ class ReservationServiceTest {
                 .build();
         given(reservationRepository.countByMemberIdAndStatusIn(anyLong(), any(List.class)))
                 .willReturn(0L);
-        given(reservationRepository.isChargerCurrentlyOccupied(any(),any()))
+        given(reservationRepository.isChargerCurrentlyOccupied(any(), any(), any()))
                 .willReturn(false);
 
         Reservation mockSaved = Reservation.builder()
@@ -90,7 +90,7 @@ class ReservationServiceTest {
                 .build();
         given(reservationRepository.countByMemberIdAndStatusIn(anyLong(),any(List.class)))
                 .willReturn(0L);
-        given(reservationRepository.isChargerCurrentlyOccupied(any(),any()))
+        given(reservationRepository.isChargerCurrentlyOccupied(any(), any(), any()))
                 .willReturn(true);
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> reservationService.createReservation(memberId, req));
@@ -148,16 +148,16 @@ class ReservationServiceTest {
     @Test
     @DisplayName("성공 : 충전기가 비어있으면 true 반환")
     void isChargerAvailable_True() {
-        given(reservationRepository.isChargerCurrentlyOccupied(any(),any()))
+        given(reservationRepository.isChargerCurrentlyOccupied(any(), any(), any()))
                 .willReturn(false);
-        assertTrue(reservationService.isChargerAvailable("CH_001"));;
+        assertTrue(reservationService.isChargerAvailable("CH_001", "STAT_001"));
     }
     @Test
     @DisplayName("성공 : 충전기가 사용 중이면 false 반환")
     void isChargerAvailable_False() {
-        given(reservationRepository.isChargerCurrentlyOccupied(any(),any()))
+        given(reservationRepository.isChargerCurrentlyOccupied(any(), any(), any()))
                 .willReturn(true);
-        assertFalse(reservationService.isChargerAvailable("CH_001"));
+        assertFalse(reservationService.isChargerAvailable("CH_001", "STAT_001"));
     }
 
     @Test

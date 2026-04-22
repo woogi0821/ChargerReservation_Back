@@ -33,6 +33,7 @@ public class PenaltyService {
     private final NotificationService notificationService;
     private final MemberRepository memberRepository;
 
+
     //      1. 패널티 등록 및 문자 발송 (단계별 처리)
     @Transactional
     public PenaltyResponseDto processPenaltyStep(PenaltyRequestDto requestDto, int step) {
@@ -96,32 +97,31 @@ public class PenaltyService {
                 until = "오늘 자정";
                 break;
         }
-        // 🎯 [실제 전송 구간]
-        try {
-            // 지환님 팀의 smsService.sendPenaltyMessage 형식을 따릅니다.
-            // (수신번호, 사용자이름, 제목, 내용) 순서로 호출
-            smsService.sendPenaltyMessage(
-                    phone,  // penalty.getMemberId() 대신 진짜 번호 대입
-                    name,   // "고객" 대신 진짜 이름 대입
-                    reason,
-                    until
-            );
 
-            // 전송 성공 시 상태값 변경
+        try {
+            // 🎯 [수정] 알림 엔진(NotificationService)을 통해서 웹알림+문자를 한 번에 처리
+            // 만약 '노쇼' 단계(3단계)라면 우리가 만든 메서드 호출
+            if (penalty.getNudgeCount() == 3) {
+                notificationService.sendNoShowSms(member);
+            } else {
+                // 1, 2단계 일반 패널티 알림
+                notificationService.createNotification(
+                        member,
+                        "⚠️ 패널티 안내",
+                        reason + "로 인해 알림이 전송되었습니다.",
+                        NotiType.PENALTY,
+                        "/mypage/penalty"
+                );
+                // 일반 문자 발송 로직 (기존 smsService 활용)
+                smsService.sendPenaltyMessage(member.getPhone(), member.getName(), reason, until);
+            }
+
             penalty.setNotiSentYn("Y");
-            log.info("패널티 {}단계 문자 발송 성공: 대상={},사유={}, 제한={}", penalty.getNudgeCount(), name, reason, until);
-            // 2. 웹 알림 저장 (새로 추가할 부분)
-            notificationService.createNotification(
-                    member,
-                    "패널티 안내",
-                    reason + " 기록으로 인해 " + until + "까지 제한됩니다.",
-                    NotiType.PENALTY,
-                    "/mypage/penalty"
-            );
+            log.info("패널티 알림 처리 성공: {}", member.getName());
 
         } catch (Exception e) {
-            log.error("패널티 문자 발송 실패: {}", e.getMessage());
-            penalty.setNotiSentYn("N"); // 실패 시 N으로 기록
+            log.error("알림 발송 실패: {}", e.getMessage());
+            penalty.setNotiSentYn("N");
         }
     }
 

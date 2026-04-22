@@ -99,13 +99,14 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
     /**
      * [수정] 내 위치 중심 1.5km 이내 + 키워드 통합 검색
      */
-// findNearbyByKeyword 메서드를 아래 쿼리로 교체
     @Query(value = "SELECT t.* FROM (" +
             "    SELECT s.STAT_ID as statId, s.STAT_NM as statNm, s.ADDR as addr, " +
             "           s.BNM as bnm, s.LAT as lat, s.LNG as lng, s.USE_TIME as useTime, " +
             "           s.PARKING_FREE as parkingFree, s.LIMIT_YN as limitYn, s.LIMIT_DETAIL as limitDetail, " +
-            "           p1.UNIT_PRICE as currentPrice, " + // 급속 요금
-            "           p2.UNIT_PRICE as slowPrice, " +    // 완속 요금
+            "           p1.UNIT_PRICE as currentPrice, " +
+            "           p2.UNIT_PRICE as slowPrice, " +
+            "           p3.UNIT_PRICE as lastCurrentPrice, " +
+            "           p4.UNIT_PRICE as lastSlowPrice, " +
             "           ROUND(6371 * acos(LEAST(1, GREATEST(-1, " +
             "               sin(:lat * 3.141592653589793 / 180) * sin(s.LAT * 3.141592653589793 / 180) + " +
             "               cos(:lat * 3.141592653589793 / 180) * cos(s.LAT * 3.141592653589793 / 180) * " +
@@ -114,6 +115,8 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             "    FROM STATION s " +
             "    LEFT JOIN CHARGER_PRICE p1 ON s.BNM = p1.BNM AND p1.SPEED_TYPE = '급속' AND p1.APPLY_YEAR = 2026 AND p1.SEASON = '봄가을' " +
             "    LEFT JOIN CHARGER_PRICE p2 ON s.BNM = p2.BNM AND p2.SPEED_TYPE = '완속' AND p2.APPLY_YEAR = 2026 AND p2.SEASON = '봄가을' " +
+            "    LEFT JOIN CHARGER_PRICE p3 ON s.BNM = p3.BNM AND p3.SPEED_TYPE = '급속' AND p3.APPLY_YEAR = 2025 AND p3.SEASON = '봄가을' " +
+            "    LEFT JOIN CHARGER_PRICE p4 ON s.BNM = p4.BNM AND p4.SPEED_TYPE = '완속' AND p4.APPLY_YEAR = 2025 AND p4.SEASON = '봄가을' " +
             "    WHERE (s.STAT_NM LIKE %:keyword% OR s.ADDR LIKE %:keyword% OR s.BNM LIKE %:keyword%) " +
             ") t " +
             "WHERE t.distance <= 1.5 " +
@@ -154,12 +157,6 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             @Param("lat") double lat,
             @Param("lng") double lng
     );
-
-    // 나머지 메서드들 (동일)
-    Optional<StationEntity> findByStatId(String statId);
-    List<StationEntity> findByZcode(String zcode);
-    List<StationEntity> findByBnmContaining(String bnm);
-    Optional<StationEntity> findByLatAndLng(Double lat, Double lng);
 
     // 어드민용 키워드 검색 (충전소명 / 주소 / 운영기관)
     @Query("SELECT s FROM StationEntity s " +

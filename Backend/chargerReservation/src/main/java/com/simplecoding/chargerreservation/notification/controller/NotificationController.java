@@ -24,6 +24,7 @@ public class NotificationController {
     @GetMapping
     public ResponseEntity<List<NotificationResponseDto>> getMyNotifications(
             @AuthenticationPrincipal UserDetails userDetails) {
+
         return ResponseEntity.ok(notificationService.getMyNotifications(userDetails.getUsername()));
     }
 

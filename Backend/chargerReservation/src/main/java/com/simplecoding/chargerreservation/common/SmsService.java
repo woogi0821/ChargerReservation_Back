@@ -31,19 +31,21 @@ public class SmsService {
     }
 
     public void sendPenaltyMessage(String to, String name, String reason, String until) {
+        String cleanNumber = to.replaceAll("[^0-9]", ""); // 숫자 제외 모든 문자 제거
         Message message = new Message();
         message.setFrom(fromNumber);
-        message.setTo(to);
+        message.setTo(cleanNumber); // 정제된 번호 사용
         message.setText("[EV충전]"+ name + "님, " + reason + " 기록으로 인해 " + until + "까지 예약이 제한됩니다.");
         this.messageService.sendOne(new SingleMessageSendingRequest(message));
     }
 
     public void sendPinMessage(String to, String name, String pin, LocalDateTime startTime, LocalDateTime endTime) {
+        String cleanNumber = to.replaceAll("[^0-9]", ""); // 숫자 제외 모든 문자 제거
         DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("MM/dd HH:mm");
         DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
         Message message = new Message();
         message.setFrom(fromNumber);
-        message.setTo(to);
+        message.setTo(cleanNumber); // 정제된 번호 사용
         message.setText("[EV충전 예약완료]" + name + "님\n" + "키오스크 PIN : " + pin + "\n" + "예약시간" + startTime.format(dateFmt) + " ~ " + endTime.format(timeFmt));
         this.messageService.sendOne(new SingleMessageSendingRequest(message));
     }
