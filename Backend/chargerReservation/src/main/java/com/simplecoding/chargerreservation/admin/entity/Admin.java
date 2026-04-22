@@ -26,19 +26,24 @@ public class Admin extends BaseTimeEntity {
     @Column(name = "MEMBER_ID", nullable = false)
     private long memberId;
 
-    // nullable = false — 관리자 권한은 필수값
     @Column(name = "ADMIN_ROLE", length = 20, nullable = false)
     private String adminRole;
 
-    // 담당 파트 — ALL / MEMBER / RESERVATION / CHARGER / INQUIRY
-    // DEFAULT 'ALL' — 기본값은 전체 접근
     @Column(name = "ADMIN_PART", length = 20)
     private String adminPart;
 
+    // 기존 생성자 유지
     public Admin(Long memberId, String adminRole) {
         this.memberId = memberId;
         this.adminRole = adminRole;
-        this.adminPart = "ALL"; // 기본값 ALL
+        this.adminPart = "ALL";
+    }
+
+    // ✅ adminPart 받는 생성자 추가
+    public Admin(Long memberId, String adminRole, String adminPart) {
+        this.memberId = memberId;
+        this.adminRole = adminRole;
+        this.adminPart = adminPart != null ? adminPart : "ALL";
     }
 
     // 역할 변경 메서드

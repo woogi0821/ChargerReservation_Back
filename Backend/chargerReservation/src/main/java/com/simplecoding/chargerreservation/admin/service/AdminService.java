@@ -59,13 +59,12 @@ public class AdminService {
         return admin.getAdminRole().equals("SUPER");
     }
 
-    // 수정/삭제 권한 체크 — SUPER / 해당 파트만
     private boolean canEdit(Admin admin, String part) {
         return isSuperRole(admin)
-                || admin.getAdminPart().equals(part);
+                || admin.getAdminPart().equals(part)
+                || admin.getAdminPart().equals("ALL");
     }
 
-    // 회원 조회 권한 체크 — SUPER / MEMBER 파트만
     private boolean canViewMember(Admin admin) {
         return isSuperRole(admin)
                 || admin.getAdminPart().equals("MEMBER")
@@ -104,18 +103,27 @@ public class AdminService {
         }
         Member member = memberRepository.findById(dto.getMemberId())
                 .orElseThrow(() -> new RuntimeException("등록 대상 회원을 찾을 수 없습니다"));
-        Admin admin = new Admin(dto.getMemberId(), dto.getAdminRole());
+
+        // ✅ adminPart 포함 생성자로 변경
+        Admin admin = new Admin(dto.getMemberId(), dto.getAdminRole(), dto.getAdminPart());
         adminRepository.save(admin);
+
+        // ✅ MEMBER_GRADE Y 로 변경
         member.setMemberGrade("Y");
         memberRepository.save(member);
-        return AdminDto.from(admin);
+
+        String name = member.getName();
+        return AdminDto.from(admin, name);
     }
 
     // ── 관리자 단건 조회 ─────────────────────────────────────────────────────────
     public AdminDto getAdmin(Long adminId) {
         Admin admin = adminRepository.findById(adminId)
                 .orElseThrow(() -> new RuntimeException("관리자를 찾을 수 없습니다"));
-        return AdminDto.from(admin);
+        String name = memberRepository.findById(admin.getMemberId())
+                .map(Member::getName)
+                .orElse("알 수 없음");
+        return AdminDto.from(admin, name);
     }
 
     // ── 관리자 역할 변경 (SUPER 만 가능) ─────────────────────────────────────────
@@ -144,6 +152,8 @@ public class AdminService {
         Admin target = adminRepository.findById(targetId)
                 .orElseThrow(() -> new RuntimeException("대상 관리자를 찾을 수 없습니다"));
         adminRepository.delete(target);
+
+        // ✅ 관리자 해제 시 MEMBER_GRADE N 으로 변경
         Member member = memberRepository.findById(target.getMemberId())
                 .orElseThrow(() -> new RuntimeException("회원을 찾을 수 없습니다"));
         member.setMemberGrade("N");
@@ -153,7 +163,6 @@ public class AdminService {
     // ── 회원 전체 목록 조회 (SUPER / MEMBER 파트만 가능) ─────────────────────────
     public List<AdminMemberDto> getMemberList() {
         Admin requester = getRequesterAdmin();
-        // ✅ 회원 관리는 SUPER / MEMBER 파트만 조회 가능
         if (!canViewMember(requester)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "회원 조회 권한이 없습니다");
         }
@@ -184,7 +193,6 @@ public class AdminService {
 
     // ── 패널티 전체 목록 조회 (관리자면 누구나 가능) ─────────────────────────────
     public List<AdminPenaltyDto> getPenaltyList() {
-        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
         getRequesterAdmin();
         return penaltyRepository.findAll()
                 .stream()
@@ -210,7 +218,6 @@ public class AdminService {
 
     // ── 예약 전체 목록 조회 (관리자면 누구나 가능) ───────────────────────────────
     public List<AdminReservationDto> getReservationList() {
-        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
         getRequesterAdmin();
         return reservationRepository.findAll()
                 .stream()
@@ -240,11 +247,7 @@ public class AdminService {
     // ── 공지사항 목록 조회 (관리자면 누구나 가능) ─────────────────────────────────
     public Page<AdminNoticeDto> getNoticeList(int page) {
         getRequesterAdmin();
-
-        // 10개씩 페이징 처리 (JPA는 0페이지부터 시작)
         Pageable pageable = PageRequest.of(page, 10);
-
-        // DB에서 [삭제 안됨 + 상단 고정순 + 최신순]으로 10개만 조회
         return noticeRepository.findByDeleteYnOrderByFixYnDescInsertTimeDesc("N", pageable)
                 .map(AdminNoticeDto::from);
     }
@@ -302,7 +305,6 @@ public class AdminService {
 
     // ── 충전소 목록 조회 (관리자면 누구나 가능) ───────────────────────────────────
     public List<AdminStationDto> getStationList(String keyword) {
-        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
         getRequesterAdmin();
         if (keyword != null && !keyword.isEmpty()) {
             return stationRepository.findByIntegratedSearch(keyword)
@@ -320,7 +322,6 @@ public class AdminService {
 
     // ── 충전기 목록 조회 (관리자면 누구나 가능) ───────────────────────────────────
     public List<AdminChargerDto> getChargerList(String statId) {
-        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
         getRequesterAdmin();
         if (statId != null && !statId.isEmpty()) {
             return chargerRepository.findByStatId(statId)
@@ -351,7 +352,6 @@ public class AdminService {
 
     // ── 문의 전체 목록 조회 (관리자면 누구나 가능) ───────────────────────────────
     public List<AdminInquiryDto> getInquiryList() {
-        // ✅ 수정 — 파트 체크 제거 / 관리자면 누구나 조회 가능
         getRequesterAdmin();
         return inquiryRepository.findAll()
                 .stream()
@@ -388,9 +388,7 @@ public class AdminService {
                 .findByStartTimeBetween(startOfDay, endOfDay).size();
 
         long totalStations = stationRepository.count();
-
         long brokenChargers = chargerRepository.countByStatIn(List.of("4", "5"));
-
         long pendingInquiries = inquiryRepository.findByStatus("PENDING").size();
 
         return new AdminDashboardDto(
