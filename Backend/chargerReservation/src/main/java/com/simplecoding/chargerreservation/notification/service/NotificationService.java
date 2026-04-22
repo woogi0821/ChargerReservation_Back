@@ -7,6 +7,7 @@ import com.simplecoding.chargerreservation.notification.dto.NotificationResponse
 import com.simplecoding.chargerreservation.notification.entity.NotiType;
 import com.simplecoding.chargerreservation.notification.entity.Notification;
 import com.simplecoding.chargerreservation.notification.repository.NotificationRepository;
+import com.simplecoding.chargerreservation.notification.sse.SseEmitters;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final MemberRepository memberRepository; // 👈 1. 여기에 추가하면 빨간 줄이 사라집니다!
     private final SmsService smsService;
+    private final SseEmitters sseEmitters;
 
     // 공통 알림 생성 메서드
     @Transactional
@@ -37,6 +39,12 @@ public class NotificationService {
         notification.setCreatedAt(LocalDateTime.now());
 
         notificationRepository.save(notification);
+        // 3. DTO로 변환 (리액트가 받을 수 있게)
+        NotificationResponseDto dto = new NotificationResponseDto(notification);
+
+        // 4. 실시간 전송 실행! 🎯
+        sseEmitters.send(member.getLoginId(), dto);
+
     }
 
     // 1. 특정 사용자의 알림 목록 조회 (최신순)
