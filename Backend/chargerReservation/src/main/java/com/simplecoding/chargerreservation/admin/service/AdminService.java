@@ -104,11 +104,9 @@ public class AdminService {
         Member member = memberRepository.findById(dto.getMemberId())
                 .orElseThrow(() -> new RuntimeException("등록 대상 회원을 찾을 수 없습니다"));
 
-        // ✅ adminPart 포함 생성자로 변경
         Admin admin = new Admin(dto.getMemberId(), dto.getAdminRole(), dto.getAdminPart());
         adminRepository.save(admin);
 
-        // ✅ MEMBER_GRADE Y 로 변경
         member.setMemberGrade("Y");
         memberRepository.save(member);
 
@@ -153,7 +151,6 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("대상 관리자를 찾을 수 없습니다"));
         adminRepository.delete(target);
 
-        // ✅ 관리자 해제 시 MEMBER_GRADE N 으로 변경
         Member member = memberRepository.findById(target.getMemberId())
                 .orElseThrow(() -> new RuntimeException("회원을 찾을 수 없습니다"));
         member.setMemberGrade("N");
@@ -216,6 +213,18 @@ public class AdminService {
         return AdminPenaltyDto.from(penaltyRepository.save(penalty));
     }
 
+    // ✅ 추가 — 패널티 삭제 (SUPER / PENALTY 파트만 가능)
+    @Transactional
+    public void deletePenalty(Long penaltyId) {
+        Admin requester = getRequesterAdmin();
+        if (!canEdit(requester, "PENALTY")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "패널티 삭제 권한이 없습니다");
+        }
+        PenaltyHistory penalty = penaltyRepository.findById(penaltyId)
+                .orElseThrow(() -> new RuntimeException("패널티를 찾을 수 없습니다"));
+        penaltyRepository.delete(penalty);
+    }
+
     // ── 예약 전체 목록 조회 (관리자면 누구나 가능) ───────────────────────────────
     public List<AdminReservationDto> getReservationList() {
         getRequesterAdmin();
@@ -242,6 +251,18 @@ public class AdminService {
         }
         reservation.changeStatus("CANCELED");
         return AdminReservationDto.from(reservationRepository.save(reservation));
+    }
+
+    // ✅ 추가 — 예약 삭제 (SUPER / RESERVATION 파트만 가능)
+    @Transactional
+    public void deleteReservation(Long reservationId) {
+        Admin requester = getRequesterAdmin();
+        if (!canEdit(requester, "RESERVATION")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "예약 삭제 권한이 없습니다");
+        }
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new RuntimeException("예약을 찾을 수 없습니다"));
+        reservationRepository.delete(reservation);
     }
 
     // ── 공지사항 목록 조회 (관리자면 누구나 가능) ─────────────────────────────────
@@ -368,9 +389,6 @@ public class AdminService {
         }
         Inquiry inquiry = inquiryRepository.findById(inquiryId)
                 .orElseThrow(() -> new RuntimeException("문의를 찾을 수 없습니다"));
-        if (inquiry.getStatus().equals("ANSWERED")) {
-            throw new RuntimeException("이미 답변된 문의입니다");
-        }
         inquiry.setAnswerContent(dto.getAnswerContent());
         inquiry.setAnswerAt(LocalDateTime.now());
         inquiry.setAdminId(requester.getAdminId());
