@@ -18,14 +18,15 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
-    private final CustomOAuth2UserService customOAuth2UserService; // 소셜 정보 처리 서비스
-    private final OAuth2SuccessHandler oAuth2SuccessHandler;       // 성공 시 JWT 발급 핸들러
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
     @Bean
     public BCryptPasswordEncoder passwordEncoder() {
@@ -35,13 +36,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // REST API이므로 기본 설정 해제(비활성화)
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .httpBasic(hp -> hp.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // URL별 권한 설정(통행증 검사 규칙)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/download/**", "/images/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
@@ -57,17 +56,15 @@ public class SecurityConfig {
                         .requestMatchers("/ws-charger/**").permitAll()
                         .requestMatchers("/kiosk/**").permitAll()
                         .requestMatchers("/").permitAll()
-                        .anyRequest().authenticated() // 그 외 모든 요청은 토큰이 있어야 함
+                        .anyRequest().authenticated()
                 )
-                // 소셜 로그인 설정
                 .oauth2Login(oauth2 -> oauth2
-                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))            // 소셜 서비스 연결
-                        .successHandler(oAuth2SuccessHandler)                                                                       // 인증 성공 시 로직
-                        .failureHandler((request, response, exception) -> {  // 로그인 실패 시 로직
+                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                        .successHandler(oAuth2SuccessHandler)
+                        .failureHandler((request, response, exception) -> {
                             response.sendRedirect("http://localhost:5173/");
                         })
                 )
-                // 인증/인가 예외 처리 (가짜 토큰, 토큰 없음 등)
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(401);
@@ -75,19 +72,24 @@ public class SecurityConfig {
                             response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"인증에 실패했습니다. 유효한 토큰을 제공하세요.\"}");
                         })
                 )
-
-                // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 끼워 넣기
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // CORS 세부 설정 Bean
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.addAllowedOrigin("http://localhost:5173");
+        // ✅ 수정 — 라이브 서버 포트 추가
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173",      // React 프론트
+                "http://localhost:5500",      // 라이브 서버
+                "http://127.0.0.1:5500",      // 라이브 서버
+                "http://localhost:5501",      // 라이브 서버 (포트 다를 때)
+                "http://127.0.0.1:5501"       // 라이브 서버 (포트 다를 때)
+        ));
+
         configuration.addAllowedHeader("*");
         configuration.addAllowedMethod("*");
         configuration.setAllowCredentials(true);

@@ -96,6 +96,14 @@ public class AdminController {
         return ResponseEntity.ok(adminService.cancelPenalty(penaltyId));
     }
 
+    // ✅ 추가 — 패널티 삭제
+    @Operation(summary = "패널티 삭제", description = "SUPER / PENALTY 파트만 가능. 패널티를 삭제합니다")
+    @DeleteMapping("/penalties/{penaltyId}")
+    public ResponseEntity<Void> deletePenalty(@PathVariable Long penaltyId) {
+        adminService.deletePenalty(penaltyId);
+        return ResponseEntity.noContent().build();
+    }
+
     // ── 예약 ──────────────────────────────────────────────────────────────────────
     @Operation(summary = "예약 전체 목록 조회", description = "관리자면 누구나 조회 가능합니다")
     @GetMapping("/reservations")
@@ -110,13 +118,19 @@ public class AdminController {
         return ResponseEntity.ok(adminService.cancelReservation(reservationId));
     }
 
+    // ✅ 추가 — 예약 삭제
+    @Operation(summary = "예약 삭제", description = "SUPER / RESERVATION 파트만 가능. 예약을 삭제합니다")
+    @DeleteMapping("/reservations/{reservationId}")
+    public ResponseEntity<Void> deleteReservation(@PathVariable Long reservationId) {
+        adminService.deleteReservation(reservationId);
+        return ResponseEntity.noContent().build();
+    }
+
     // ── 공지사항 ──────────────────────────────────────────────────────────────────
     @Operation(summary = "공지사항 목록 조회", description = "관리자면 누구나 조회 가능합니다. 삭제된 공지는 제외됩니다")
     @GetMapping("/notices")
-// List -> Page로 변경, page 파라미터 추가
     public ResponseEntity<Page<AdminNoticeDto>> getNoticeList(
-            @RequestParam(defaultValue = "0") int page
-    ) {
+            @RequestParam(defaultValue = "0") int page) {
         return ResponseEntity.ok(adminService.getNoticeList(page));
     }
 

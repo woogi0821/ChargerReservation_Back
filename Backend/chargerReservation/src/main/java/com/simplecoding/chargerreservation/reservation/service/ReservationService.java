@@ -42,6 +42,15 @@ public class ReservationService {
 
     @Transactional
     public ReservationDto.Response createReservation(Long memberId, ReservationDto.Request req) {
+        // 1. 패널티 회원 검증 (오늘 노쇼 기록이 있는지 확인)
+        // PenaltyService의 isRestrictedToday를 호출합니다.
+        if (penaltyService.isRestrictedToday(String.valueOf(memberId))) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "오늘 노쇼 패널티 이력이 있어 자정까지 예약을 할 수 없습니다."
+            );
+        }
+
+        // 2. 기존 로직: 활성 예약 개수 체크
         long activeCount = reservationRepository.countByMemberIdAndStatusIn(
                 memberId, List.of("RESERVED", "CHARGING")
         );

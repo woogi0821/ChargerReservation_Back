@@ -14,18 +14,20 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-//                아래 url 허용
-//          사용법 : .allowedOrigins("http://허용할IP:허용할Port", ...)
-                .allowedOrigins(reactIp)
-//                Todo: 아래 추가해야 update, delete, insert, select 가 cors 문제가 안생김
+                .allowedOrigins(
+                        reactIp,                      // http://localhost:5173 유지
+                        "http://localhost:5500",       // ✅ 추가 — 라이브 서버
+                        "http://127.0.0.1:5500",       // ✅ 추가 — 라이브 서버
+                        "http://localhost:5501",        // ✅ 추가 — 라이브 서버 (포트 다를 때)
+                        "http://127.0.0.1:5501"         // ✅ 추가 — 라이브 서버 (포트 다를 때)
+                )
                 .allowedMethods(
                         HttpMethod.GET.name(),
                         HttpMethod.POST.name(),
                         HttpMethod.PUT.name(),
                         HttpMethod.DELETE.name(),
                         HttpMethod.PATCH.name()
-                )//        TODO: 벡엔드 옵션 추가 필요: httpOnly 쿠키 허용 옵션
+                )
                 .allowCredentials(true);
-
     }
 }

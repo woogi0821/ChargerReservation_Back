@@ -16,7 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -62,13 +64,13 @@ public class PenaltyService {
     }
 
 
-    //      3. [예약팀 협업용] 오늘 이 회원이 예약 가능한지 확인
+    //      3. 오늘 이 회원이 예약 가능한지 확인
     public boolean isRestrictedToday(String memberId) {
-        // 오늘 00:00:00 ~ 23:59:59 범위 설정
+        // 🎯 방법 B에서 수정했던 범위를 다시 원래대로 혹은 표준적인 오늘 범위로 설정합니다.
+        // 타임존이 고정되면 LocalDateTime.now()가 한국 시간을 정확히 가져옵니다.
         LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59).withNano(999999999);
 
-        // 오늘 날짜로 '3단계(최종)' 기록이 하나라도 있으면 true 반환(예약막음)
         return penaltyRepository.existsByMemberIdAndNudgeCountAndInsertTimeBetween(memberId, 3, start, end);
     }
 
