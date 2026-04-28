@@ -137,6 +137,19 @@ public class AdminService {
         return AdminDto.from(adminRepository.save(target));
     }
 
+    // ✅ 추가 — 관리자 파트 변경 (SUPER 만 가능)
+    @Transactional
+    public AdminDto updateAdminPart(Long targetId, String newPart) {
+        Admin requester = getRequesterAdmin();
+        if (!isSuperRole(requester)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SUPER 권한만 파트 변경이 가능합니다");
+        }
+        Admin target = adminRepository.findById(targetId)
+                .orElseThrow(() -> new RuntimeException("대상 관리자를 찾을 수 없습니다"));
+        target.updatePart(newPart);
+        return AdminDto.from(adminRepository.save(target));
+    }
+
     // ── 관리자 해제 (SUPER 만 가능) ──────────────────────────────────────────────
     @Transactional
     public void deleteAdmin(Long targetId) {
@@ -188,7 +201,7 @@ public class AdminService {
         return AdminMemberDto.from(memberRepository.save(member));
     }
 
-    // ── 패널티 전체 목록 조회 (관리자면 누구나 가능) ─────────────────────────────
+    // ── 패널티 전체 목록 조회 ────────────────────────────────────────────────────
     public List<AdminPenaltyDto> getPenaltyList() {
         getRequesterAdmin();
         return penaltyRepository.findAll()
@@ -213,7 +226,7 @@ public class AdminService {
         return AdminPenaltyDto.from(penaltyRepository.save(penalty));
     }
 
-    // ✅ 추가 — 패널티 삭제 (SUPER / PENALTY 파트만 가능)
+    // ── 패널티 삭제 (SUPER / PENALTY 파트만 가능) ────────────────────────────────
     @Transactional
     public void deletePenalty(Long penaltyId) {
         Admin requester = getRequesterAdmin();
@@ -225,7 +238,7 @@ public class AdminService {
         penaltyRepository.delete(penalty);
     }
 
-    // ── 예약 전체 목록 조회 (관리자면 누구나 가능) ───────────────────────────────
+    // ── 예약 전체 목록 조회 ──────────────────────────────────────────────────────
     public List<AdminReservationDto> getReservationList() {
         getRequesterAdmin();
         return reservationRepository.findAll()
@@ -253,7 +266,7 @@ public class AdminService {
         return AdminReservationDto.from(reservationRepository.save(reservation));
     }
 
-    // ✅ 추가 — 예약 삭제 (SUPER / RESERVATION 파트만 가능)
+    // ── 예약 삭제 (SUPER / RESERVATION 파트만 가능) ──────────────────────────────
     @Transactional
     public void deleteReservation(Long reservationId) {
         Admin requester = getRequesterAdmin();
@@ -265,7 +278,7 @@ public class AdminService {
         reservationRepository.delete(reservation);
     }
 
-    // ── 공지사항 목록 조회 (관리자면 누구나 가능) ─────────────────────────────────
+    // ── 공지사항 목록 조회 ────────────────────────────────────────────────────────
     public Page<AdminNoticeDto> getNoticeList(int page) {
         getRequesterAdmin();
         Pageable pageable = PageRequest.of(page, 10);
@@ -324,7 +337,7 @@ public class AdminService {
         noticeRepository.save(notice);
     }
 
-    // ── 충전소 목록 조회 (관리자면 누구나 가능) ───────────────────────────────────
+    // ── 충전소 목록 조회 ──────────────────────────────────────────────────────────
     public List<AdminStationDto> getStationList(String keyword) {
         getRequesterAdmin();
         if (keyword != null && !keyword.isEmpty()) {
@@ -341,7 +354,7 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // ── 충전기 목록 조회 (관리자면 누구나 가능) ───────────────────────────────────
+    // ── 충전기 목록 조회 ──────────────────────────────────────────────────────────
     public List<AdminChargerDto> getChargerList(String statId) {
         getRequesterAdmin();
         if (statId != null && !statId.isEmpty()) {
@@ -371,7 +384,7 @@ public class AdminService {
         return AdminChargerDto.from(chargerRepository.save(charger));
     }
 
-    // ── 문의 전체 목록 조회 (관리자면 누구나 가능) ───────────────────────────────
+    // ── 문의 전체 목록 조회 ──────────────────────────────────────────────────────
     public List<AdminInquiryDto> getInquiryList() {
         getRequesterAdmin();
         return inquiryRepository.findAll()
