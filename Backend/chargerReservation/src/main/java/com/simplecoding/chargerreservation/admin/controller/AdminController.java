@@ -61,6 +61,15 @@ public class AdminController {
         return ResponseEntity.ok(adminService.updateAdminRole(targetId, newRole));
     }
 
+    // ✅ 추가 — 관리자 파트 변경
+    @Operation(summary = "관리자 파트 변경", description = "SUPER 권한만 가능. 관리자의 담당 파트를 변경합니다")
+    @PatchMapping("/{targetId}/part")
+    public ResponseEntity<AdminDto> updateAdminPart(
+            @PathVariable Long targetId,
+            @RequestParam String newPart) {
+        return ResponseEntity.ok(adminService.updateAdminPart(targetId, newPart));
+    }
+
     @Operation(summary = "관리자 해제", description = "SUPER 권한만 가능. 관리자를 해제하고 MEMBER_GRADE 를 N 으로 변경합니다")
     @DeleteMapping("/{targetId}")
     public ResponseEntity<Void> deleteAdmin(@PathVariable Long targetId) {
@@ -96,7 +105,6 @@ public class AdminController {
         return ResponseEntity.ok(adminService.cancelPenalty(penaltyId));
     }
 
-    // ✅ 추가 — 패널티 삭제
     @Operation(summary = "패널티 삭제", description = "SUPER / PENALTY 파트만 가능. 패널티를 삭제합니다")
     @DeleteMapping("/penalties/{penaltyId}")
     public ResponseEntity<Void> deletePenalty(@PathVariable Long penaltyId) {
@@ -118,7 +126,6 @@ public class AdminController {
         return ResponseEntity.ok(adminService.cancelReservation(reservationId));
     }
 
-    // ✅ 추가 — 예약 삭제
     @Operation(summary = "예약 삭제", description = "SUPER / RESERVATION 파트만 가능. 예약을 삭제합니다")
     @DeleteMapping("/reservations/{reservationId}")
     public ResponseEntity<Void> deleteReservation(@PathVariable Long reservationId) {
