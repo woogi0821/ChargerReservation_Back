@@ -67,7 +67,7 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             "               cos((s.LNG - :lng) * 3.141592653589793 / 180) " +
             "           ))), 2) AS distance " +
             "    FROM STATION s " +
-            "    /* ✅ 최적화 2: 상관 서브쿼리 대신 인라인 뷰 조인 사용 */ " +
+            "    /* ✅ 최적화 : 상관 서브쿼리 대신 인라인 뷰 조인 사용 */ " +
             "    LEFT JOIN ( " +
             "        SELECT STAT_ID, " +
             "               COUNT(CASE WHEN STAT = '2' THEN 1 END) AS availableCount, " +
@@ -82,7 +82,7 @@ public interface StationRepository extends JpaRepository<StationEntity, String> 
             "    LEFT JOIN CHARGER_PRICE p2 ON s.BNM = p2.BNM " +
             "        AND p2.SPEED_TYPE = '완속' " +
             "        AND p2.APPLY_YEAR = :year AND p2.SEASON = :season " +
-            "    /* ✅ 최적화 3: 인덱스 스캔 유도 - 반경 기반 단순 사각형 필터 추가 (대략적인 범위 우선 필터링) */ " +
+            "    /* ✅ 최적화 : 인덱스 스캔 유도 - 반경 기반 단순 사각형 필터 추가 (대략적인 범위 우선 필터링) */ " +
             "    WHERE s.LAT BETWEEN (:lat - (:radius/111)) AND (:lat + (:radius/111)) " +
             "      AND s.LNG BETWEEN (:lng - (:radius/88)) AND (:lng + (:radius/88)) " +
             "      AND s.LAT IS NOT NULL AND s.LNG IS NOT NULL " +
